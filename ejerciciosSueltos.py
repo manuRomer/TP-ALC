@@ -3,7 +3,7 @@ import numpy as np
 import os
 import time
 
-carpetaGatosYPerros = '/home/manu/Escritorio/Talleres ALC/Trabajo Practico/Recursos TP-20251111/template-alumnos/template-alumnos/dataset/cats_and_dogs'
+carpetaGatosYPerros = '/template-alumnos/dataset/cats_and_dogs'
 
 # Ejercicio 1
 def cargarDataset(carpeta):
