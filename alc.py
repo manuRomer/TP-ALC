@@ -33,7 +33,7 @@ def matricesIguales(A, B, tol = 1e-8):
                 return False
     return True
 
-# Laboratorio 2
+## Laboratorio 2
 
 def rota(theta):
     """
@@ -705,17 +705,13 @@ def cholesky(A):
     n = A.shape[0]
     L = np.zeros((n, n))
 
-    atol=1e-8
-    
     for j in range(n):
-        vector_L_j = L[j, :j] 
-        suma_diag = vector_L_j @ vector_L_j
-        valor_raiz = A[j, j] - suma_diag
-        L[j, j] = math.sqrt(valor_raiz)
-        for i in range(j + 1, n):
-            vector_L_i = L[i, :j]
-            suma_no_diag = vector_L_i @ vector_L_j
-            L[i, j] = (A[i, j] - suma_no_diag) / L[j, j]
+        suma_diag = sum(L[j][k]**2 for k in range(j))
+        L[j][j] = math.sqrt(A[j][j] - suma_diag)
+
+        for i in range(j+1, n):
+            suma_no_diag = sum(L[i][k] * L[j][k] for k in range(j))
+            L[i][j] = (A[i][j] - suma_no_diag) / L[j][j]
     return L
 
 def esDiagonal(A):
