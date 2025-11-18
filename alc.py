@@ -690,7 +690,7 @@ def matriz_diagonal_a_vector(diagonal_autovalores):
 
 def calcularMatriz(A,B,diagonal_autovalores):
     """Devuelve la matriz faltante para SVD"""
-    matriz_faltante = multi_matricial(A, B) 
+    matriz_faltante = A@B 
     for j in range(matriz_faltante.shape[1]):
         for i in range(matriz_faltante.shape[0]):
             matriz_faltante[i][j] = matriz_faltante[i][j] / diagonal_autovalores[j][j]
