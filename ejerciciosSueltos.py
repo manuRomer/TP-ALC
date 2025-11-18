@@ -4,7 +4,7 @@ import os
 import time
 import matplotlib.pyplot as plt
 
-carpetaGatosYPerros = '/template-alumnos/dataset/cats_and_dogs'
+carpetaGatosYPerros = '/home/Estudiante/Escritorio/TP ALC/TP-ALC/template-alumnos/dataset/cats_and_dogs'
 
 # Ejercicio 1
 def cargarDataset(carpeta):
@@ -214,33 +214,50 @@ def evaluacion():
     Xt, Yt, Xv, Yv = cargarDataset(carpetaGatosYPerros)
 
     # En el contexto del TP n < p, entonces para el algoritmo 1 aplicamos Cholesky sobre X @ X^T
+    tiempo_inicio_EN = time.perf_counter()
     L = cholesky_optimizado(Xt @ traspuesta(Xt))
     WEN = pinvEcuacionesNormales(Xt, L , Yt)
+    tiempo_fin_EN = time.perf_counter()
     print('Terminó WEN')
     matriz_de_confusion_EN = generarMatrizDeConfusion(WEN, Xt, Yt)
     
+    tiempo_inicio_SVD = time.perf_counter()
     U, s_vector, V = svd_reducida_optimizado(Xt)
     S = np.diag(s_vector)
     WSVD = pinvSVD(U, S, V, Yt)
+    tiempo_fin_SVD = time.perf_counter()
     print('Terminó WSVD')
     matriz_de_confusion_SVD = generarMatrizDeConfusion(WSVD, Xt, Yt)
 
+    tiempo_inicio_QRHH = time.perf_counter()
     QHH, RHH = QR_con_HH_optimizado(traspuesta(Xt))
     WQRHH = pinvHouseHolder(QHH, RHH, Yt)
+    tiempo_fin_QRHH = time.perf_counter()
     print('Terminó WQRHH')
     matriz_de_confusion_WQRHH = generarMatrizDeConfusion(WQRHH, Xt, Yt)
     
+    tiempo_inicio_QRGS = time.perf_counter()
     QGS, RGS = QR_con_GS_optimizado(traspuesta(Xt))
     WQRGS = pinvGramSchmidt(QGS, RGS, Yt)
+    tiempo_fin_QRGS = time.perf_counter()
     print('Terminó WQRGS')
     matriz_de_confusion_WQRGS = generarMatrizDeConfusion(WQRGS, Xt, Yt)
-    
-    #Grafica
+
+    #Graficos
     metodos = ["EN", "SVD", "QR-HH", "QR-GS"]
     TP_vals = []
     FP_vals = []
     TN_vals = []
     FN_vals = []
+
+    #Tiempos
+    tiempos = [tiempo_fin_EN-tiempo_inicio_EN, tiempo_fin_SVD-tiempo_inicio_SVD, tiempo_fin_QRHH-tiempo_inicio_QRHH, tiempo_fin_QRGS-tiempo_inicio_QRGS]
+    plt.figure()
+    plt.bar(metodos, tiempos)
+    plt.ylabel("Tiempo en segundos")
+    plt.title("Comparativa de tiempos de ejecucion para el calculo de W")
+    plt.tight_layout()
+    plt.show()
     
     for C in [matriz_de_confusion_EN, matriz_de_confusion_SVD, matriz_de_confusion_WQRHH, matriz_de_confusion_WQRGS]:
         TP, FP, TN, FN = extraerPorcentajes(C)
@@ -249,36 +266,21 @@ def evaluacion():
         TN_vals.append(TN)
         FN_vals.append(FN)
     
-    #Grafico TP
-    plt.figure()
-    plt.bar(metodos, TP_vals)
-    plt.ylabel("Porcentaje")
-    plt.title("True Positives (TP)")
-    plt.tight_layout()
-    plt.show()
+    fig, axs = plt.subplots(2, 2, figsize=(10, 8))
     
-    #Grafico FP
-    plt.figure()
-    plt.bar(metodos, FP_vals)
-    plt.ylabel("Porcentaje")
-    plt.title("False Positives (FP)")
+    for i, metodo in enumerate(metodos):
+        #Posicion en el grafico
+        ax = axs[i // 2, i % 2] 
+        
+        values = [TP_vals[i], FP_vals[i], TN_vals[i], FN_vals[i]]
+        
+        ax.bar(['TP', 'FP', 'TN', 'FN'], values, color=['skyblue', 'lightcoral', 'lightgreen', 'salmon'])
+        
+        ax.set_title(f'Método {metodo}')
+        ax.set_ylabel('Porcentaje')
+    
     plt.tight_layout()
-    plt.show()
 
-    #Grafico TN
-    plt.figure()
-    plt.bar(metodos, TN_vals)
-    plt.ylabel("Porcentaje")
-    plt.title("True Negatives (TN)")
-    plt.tight_layout()
-    plt.show()
-
-    #Grafico FN
-    plt.figure()
-    plt.bar(metodos, FN_vals)
-    plt.ylabel("Porcentaje")
-    plt.title("False Negatives (FN)")
-    plt.tight_layout()
     plt.show()
     
     
