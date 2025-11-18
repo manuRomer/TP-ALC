@@ -1,7 +1,6 @@
 from alc import *
 import numpy as np
 import os
-import time
 import matplotlib.pyplot as plt
 
 carpetaGatosYPerros = '/media/feli/Disco duro/Feli/Desktop/Ciencias de Computacion/2025/2C_2025/ALC/TP-ALC/template-alumnos/dataset/cats_and_dogs'
@@ -154,75 +153,13 @@ def evaluacion():
 
     Xt, Yt, Xv, Yv = cargarDataset(carpetaGatosYPerros)
 
-    # En el contexto del TP n < p, entonces para el algoritmo 1 aplicamos Cholesky sobre X @ X^T
-    tiempo_inicio_EN = time.perf_counter()
-    L = cholesky_optimizado(Xt @ traspuesta(Xt))
-    WEN = pinvEcuacionesNormales(Xt, L , Yt)
-    tiempo_fin_EN = time.perf_counter()
-    print('Terminó WEN')
-    matriz_de_confusion_EN = generarMatrizDeConfusion(WEN, Xv, Yv)
+    C_EN, C_SVD, C_WQRHH, C_WQRGS, tiempo_EN, tiempo_SVD, tiempo_QRHH, tiempo_QRGS = obtenerMatricesDeConfusion(Xt, Yt, Xv, Yv)
     
-    tiempo_inicio_SVD = time.perf_counter()
-    U, s_vector, V = svd_reducida_optimizado(Xt)
-    S = np.diag(s_vector)
-    WSVD = pinvSVD(U, S, V, Yt)
-    tiempo_fin_SVD = time.perf_counter()
-    print('Terminó WSVD')
-    matriz_de_confusion_SVD = generarMatrizDeConfusion(WSVD, Xv, Yv)
+    generarGraficos(C_EN, tiempo_EN, 
+                    C_SVD, tiempo_SVD, 
+                    C_WQRHH, tiempo_QRHH, 
+                    C_WQRGS, tiempo_QRGS)
 
-    tiempo_inicio_QRHH = time.perf_counter()
-    QHH, RHH = QR_con_HH_optimizado(traspuesta(Xt))
-    WQRHH = pinvHouseHolder(QHH, RHH, Yt)
-    tiempo_fin_QRHH = time.perf_counter()
-    print('Terminó WQRHH')
-    matriz_de_confusion_WQRHH = generarMatrizDeConfusion(WQRHH, Xv, Yv)
-    
-    tiempo_inicio_QRGS = time.perf_counter()
-    QGS, RGS = QR_con_GS_optimizado(traspuesta(Xt))
-    WQRGS = pinvGramSchmidt(QGS, RGS, Yt)
-    tiempo_fin_QRGS = time.perf_counter()
-    print('Terminó WQRGS')
-    matriz_de_confusion_WQRGS = generarMatrizDeConfusion(WQRGS, Xv, Yv)
-
-    #Graficos
-    metodos = ["EN", "SVD", "QR-HH", "QR-GS"]
-    TP_vals = []
-    FP_vals = []
-    TN_vals = []
-    FN_vals = []
-
-    #Tiempos
-    tiempos = [tiempo_fin_EN-tiempo_inicio_EN, tiempo_fin_SVD-tiempo_inicio_SVD, tiempo_fin_QRHH-tiempo_inicio_QRHH, tiempo_fin_QRGS-tiempo_inicio_QRGS]
-    plt.figure()
-    plt.bar(metodos, tiempos)
-    plt.ylabel("Tiempo en segundos")
-    plt.title("Comparativa de tiempos de ejecucion para el calculo de W")
-    plt.tight_layout()
-    plt.show()
-    
-    for C in [matriz_de_confusion_EN, matriz_de_confusion_SVD, matriz_de_confusion_WQRHH, matriz_de_confusion_WQRGS]:
-        TP, FP, TN, FN = extraerPorcentajes(C)
-        TP_vals.append(TP)
-        FP_vals.append(FP)
-        TN_vals.append(TN)
-        FN_vals.append(FN)
-    
-    fig, axs = plt.subplots(2, 2, figsize=(10, 8))
-    
-    for i, metodo in enumerate(metodos):
-        #Posicion en el grafico
-        ax = axs[i // 2, i % 2] 
-        
-        values = [TP_vals[i], FP_vals[i], TN_vals[i], FN_vals[i]]
-        
-        ax.bar(['TP', 'FP', 'TN', 'FN'], values, color=['skyblue', 'lightcoral', 'lightgreen', 'salmon'])
-        
-        ax.set_title(f'Método {metodo}')
-        ax.set_ylabel('Porcentaje')
-    
-    plt.tight_layout()
-
-    plt.show()
     
     
 
