@@ -133,14 +133,25 @@ def multi_matricial(A, B):
     if A.shape[1] != B.shape[0]:
         raise ValueError(f"No se pueden multiplicar: {A.shape} y {B.shape}")
 
-    # Inicializar matriz resultado con ceros
-    C = np.zeros((A.shape[0], B.shape[1]))
+    # 2. Transponer B para facilitar la multiplicación elemento a elemento
+    B_T = B.T
 
-    # Multiplicación clásica
-    for i in range(A.shape[0]):
-        for j in range(B.shape[1]):
-            for k in range(A.shape[1]):
-                C[i, j] += A[i, k] * B[k, j]
+    # 3. Inicializar la matriz resultado (m x p)
+    m, n = A.shape
+    p = B.shape[1] # p es el número de columnas de B
+    C = np.zeros((m, p))
+
+    # 4. Iterar sobre las filas de A (i) y las columnas de B (j)
+    #    (que corresponden a las filas de B_T)
+    for i in range(m):
+        for j in range(p):
+            # El elemento C[i, j] es el producto punto de la fila i de A y 
+            # la columna j de B (que es la fila j de B_T).
+            # Se calcula mediante la multiplicación elemento a elemento
+            # y luego sumando los resultados.
+            C[i, j] = np.sum(A[i, :] * B_T[j, :])
+
+    return C
 
     # Si el resultado es un vector columna o fila → devolver como 1D
     
@@ -285,9 +296,7 @@ def traspuesta(A):
     At = np.empty((m, n))
 
     for i in range(n):
-        row = A[i]
-        for j in range(m):
-            At[j, i] = row[j]
+        At[:, i] = A[i, :]
     return At
 
 def vector_traspuesto(v):
@@ -471,46 +480,75 @@ def metpot2k(A, tol=1e-15, K=1000):
     e -= 1
     return v, autovalor, k
 
-def diagRH(A,tol=1e-15,K=1000):
-    
+def diagRH_iter(A, tol=1e-15, K=1000):
     """
     A una matriz simetrica de n x n
-    tol la tolerancia en la diferencia entre un paso y el siguiente de la estimacion del
-    autovector. K el numero maximo de iteraciones a realizarse
+    Implementacion ITERATIVA de la diagonalizacion por reduccion de Householder
+    usando el Metodo de la Potencia.
+
     return a matriz de autovectores S y matriz de autovalores D, tal que A = S D S.T
     Si la matriz A no es simetrica, debe retornar None
     """
+    if not np.allclose(A, A.T):
+        print("La matriz no es simétrica.")
+        return None
+
     n = A.shape[0]
-    v1, lambda1, k = metpot2k(A, tol, K)
-    e1 = np.zeros(v1.shape[0])
-    e1[0] = 1
+    A_actual = A.copy()  # Copia de la matriz que se va reduciendo
+    S_acumulada = np.eye(n)  # Matriz de autovectores acumulada
+    autovalores = []  # Lista para almacenar los autovalores en orden
 
-    sign = 1.0 if v1[0] >= 0 else -1.0
-    w = v1 + sign * norma(v1, 2) * e1
+    # El proceso de reducción se repite n-1 veces hasta que queda un escalar (el último autovalor)
+    for i in range(n - 1):
+        n_actual = A_actual.shape[0]  # Tamaño del sub-bloque actual (n, n-1, n-2, ..., 2)
 
-    nw = norma(w, 2)
-    if (nw < tol):
-        H_v1 = np.eye(n)
-    else:
-        w = w / nw
-        H_v1 = np.eye(n) - 2.0 * multi_matricial(traspuesta(w), w)
+        # 1. Metodo de la Potencia para el autovalor principal del sub-bloque
+        # Metpot2k devuelve v1, lambda1, k para la matriz A_actual
+        v1, lambda1, k = metpot2k(A_actual, tol, K)
+        autovalores.append(lambda1)
 
-    if (n == 1):
-        S = H_v1
-        D = multi_matricial(H_v1, multi_matricial(A, traspuesta(H_v1)))
-        return S, D
+        # 2. Construcción del Vector y Matriz de Householder (H_v1)
+        e1 = np.zeros(n_actual)
+        e1[0] = 1
+
+        # Determinar el signo para asegurar la estabilidad (reflejar v1 sobre el eje e1)
+        sign = 1.0 if v1[0] >= 0 else -1.0
+        w = v1 + sign * norma(v1, 2) * e1
+
+        nw = norma(w, 2)
+
+        if nw < tol:
+            H_v1 = np.eye(n_actual)
+        else:
+            w_norm = w / nw
+            # H_v1 = I - 2 * w_norm @ w_norm.T (usando multi_matricial y traspuesta)
+            H_v1 = np.eye(n_actual) - 2.0 * multi_matricial(w_norm.reshape(-1, 1), w_norm.reshape(1, -1))
+
+        # 3. Transformación de la Matriz A (B = H * A * H.T)
+        # B = multi_matricial(H_v1, multi_matricial(A_actual, traspuesta(H_v1)))
+        A_actual = multi_matricial(H_v1, multi_matricial(A_actual, traspuesta(H_v1)))
+        
+        # 4. Acumulación de Autovectores (S = S * H.T)
+        # Hay que extender H_v1 al tamaño original n x n
+        H_ext = np.eye(n)
+        # El bloque de Householder se coloca en la parte inferior derecha,
+        # con un desplazamiento dado por 'i'
+        H_ext[i:, i:] = H_v1
+        
+        # La matriz de autovectores S se actualiza como S * H_ext.T
+        S_acumulada = multi_matricial(S_acumulada, traspuesta(H_ext))
+        
+        # 5. Reducción del Sub-bloque A_actual (quitamos la primera fila y columna)
+        A_actual = A_actual[1:, 1:]
+
+    # El último elemento en A_actual (un escalar) es el último autovalor
+    if n > 0:
+        autovalores.append(A_actual[0, 0] if n == 1 else A_actual[0])
     
-    else:
-        B = multi_matricial(H_v1, multi_matricial(A, traspuesta(H_v1)))
-        A_prima = B[1:,1:]
-        S_prima, D_prima = diagRH(A_prima, tol, K)
-        D = np.zeros((n, n))
-        D[0][0] = lambda1
-        D[1:,1:] = D_prima
-        S = np.eye(n)
-        S[1:,1:] = S_prima
-        S = multi_matricial(H_v1, S)
-        return S, D
+    # 6. Construcción de D
+    D = np.diag(autovalores)
+    
+    return S_acumulada, D
 
 ## Laboratorio 7
 
