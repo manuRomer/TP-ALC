@@ -2,6 +2,7 @@ from alc import *
 import numpy as np
 import os
 import time
+import matplotlib.pyplot as plt
 
 carpetaGatosYPerros = '/template-alumnos/dataset/cats_and_dogs'
 
@@ -148,6 +149,65 @@ def esPseudoInversa(X, pX, tol = 1e-8):
     return True
 
 # Ejercicio 6 
+def generarMatrizDeConfusion(W, X, Y):
+    """
+    Genera una matriz de confusion C 2x2 dada una matriz de pesos W, una matriz de embeddings X y una matriz de targets Y
+    
+    C[0][0] es TP: Imagenes de gatos predichas correctamente como gatos
+    
+    C[0][1] es FN: Imagenes de gatos predichas como perros
+    
+    C[1][0] es FP: Imagenes de perros predichas como gatos
+    
+    C[1][1] es TN: Imagenes de perros predichas correctamente como perros
+    """
+    
+    C = np.zeros((2,2))
+    
+    #Usamos multiplicacion de matrices de numpy por performance
+    results = W@X
+    
+    #Tengo una version en GPT que parece que corre 100 veces mas rapido pero es muy GPT-esque y usa mucho numpy
+    
+    for i in range(results.shape[1]):
+        if results[0][i] > results[1][i]:
+            max_arg = 0
+        else:
+            max_arg = 1
+        
+        #Si la prediccion fue gato
+        if max_arg == 0:
+            #Si era un gato
+            if Y[0][i] == 1:
+                C[0][0] = C[0][0] + 1
+            #Si era un perro
+            else:
+                C[1][0] = C[1][0] + 1
+        #Si la prediccion fue perro
+        else:
+            #Si era un gato
+            if Y[0][i] == 1:
+                C[0][1] = C[0][1] + 1
+            #Si era un perro
+            else:
+                C[1][1] = C[1][1] + 1
+                
+    return C    
+    
+    
+def extraerPorcentajes(C):
+    """Dada una matriz de confusion C, extrae los porcentajes de True Positive, False Positive, True Negative y False Negative"""
+    C00, C01 = C[0,0], C[0,1]
+    C10, C11 = C[1,0], C[1,1]
+
+    TP = C11
+    FP = C01
+    FN = C10
+    TN = C00
+    total = C.sum()
+
+    return TP/total, FP/total, TN/total, FN/total    
+
 def evaluacion():
     # Tarda aprox 2 minutos en calcular la 2 W
 
@@ -155,22 +215,72 @@ def evaluacion():
 
     # En el contexto del TP n < p, entonces para el algoritmo 1 aplicamos Cholesky sobre X @ X^T
     L = cholesky_optimizado(Xt @ traspuesta(Xt))
-    
     WEN = pinvEcuacionesNormales(Xt, L , Yt)
     print('Terminó WEN')
-
+    matriz_de_confusion_EN = generarMatrizDeConfusion(WEN, Xt, Yt)
+    
     U, s_vector, V = svd_reducida_optimizado(Xt)
     S = np.diag(s_vector)
     WSVD = pinvSVD(U, S, V, Yt)
     print('Terminó WSVD')
+    matriz_de_confusion_SVD = generarMatrizDeConfusion(WSVD, Xt, Yt)
 
     QHH, RHH = QR_con_HH_optimizado(traspuesta(Xt))
     WQRHH = pinvHouseHolder(QHH, RHH, Yt)
     print('Terminó WQRHH')
+    matriz_de_confusion_WQRHH = generarMatrizDeConfusion(WQRHH, Xt, Yt)
     
     QGS, RGS = QR_con_GS_optimizado(traspuesta(Xt))
     WQRGS = pinvGramSchmidt(QGS, RGS, Yt)
     print('Terminó WQRGS')
+    matriz_de_confusion_WQRGS = generarMatrizDeConfusion(WQRGS, Xt, Yt)
+    
+    #Grafica
+    metodos = ["EN", "SVD", "QR-HH", "QR-GS"]
+    TP_vals = []
+    FP_vals = []
+    TN_vals = []
+    FN_vals = []
+    
+    for C in [matriz_de_confusion_EN, matriz_de_confusion_SVD, matriz_de_confusion_WQRHH, matriz_de_confusion_WQRGS]:
+        TP, FP, TN, FN = extraerPorcentajes(C)
+        TP_vals.append(TP)
+        FP_vals.append(FP)
+        TN_vals.append(TN)
+        FN_vals.append(FN)
+    
+    #Grafico TP
+    plt.figure()
+    plt.bar(metodos, TP_vals)
+    plt.ylabel("Porcentaje")
+    plt.title("True Positives (TP)")
+    plt.tight_layout()
+    plt.show()
+    
+    #Grafico FP
+    plt.figure()
+    plt.bar(metodos, FP_vals)
+    plt.ylabel("Porcentaje")
+    plt.title("False Positives (FP)")
+    plt.tight_layout()
+    plt.show()
+
+    #Grafico TN
+    plt.figure()
+    plt.bar(metodos, TN_vals)
+    plt.ylabel("Porcentaje")
+    plt.title("True Negatives (TN)")
+    plt.tight_layout()
+    plt.show()
+
+    #Grafico FN
+    plt.figure()
+    plt.bar(metodos, FN_vals)
+    plt.ylabel("Porcentaje")
+    plt.title("False Negatives (FN)")
+    plt.tight_layout()
+    plt.show()
+    
     
 
 evaluacion()
