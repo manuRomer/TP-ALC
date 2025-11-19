@@ -116,33 +116,43 @@ def normaliza(X, p):
     return Y
 
 def multi_matricial(A, B):
-
     # Si ambos son vectores 1D → producto interno
     if A.ndim == 1 and B.ndim == 1:
         if A.shape[0] != B.shape[0]:
             raise ValueError("Los vectores no tienen la misma longitud")
-        return np.sum(A[i]*B[i] for i in range(A.shape[0]))
+        return np.sum(A*B)
 
-    # Si A es vector 1D → tratarlo como fila (1 x n)
+    # Si A vector columna y B es vector fila → tratar B como fila (1 x n)
+    if A.ndim == 2 and A.shape[1] == 1 and B.ndim == 1:
+        B = B.reshape(1, -1)
+    # Si A matriz y B es vector fila → tratar B como columna (n x 1)
+    if A.ndim == 2 and A.shape[1] > 1 and B.ndim == 1:
+        B = B.reshape(-1, 1)
+    # Si A vector fila → tratar A como fila (1 x n)
     if A.ndim == 1:
         A = A.reshape(1, -1)
 
-    # Si B es vector 1D → tratarlo como col (n x 1)
-    if B.ndim == 1:
-        B = B.reshape(1, -1)
-
+    m, n = A.shape
+    k, p = B.shape
     # Chequear dimensiones compatibles
-    if A.shape[1] != B.shape[0]:
-        raise ValueError(f"No se pueden multiplicar: {A.shape} y {B.shape}")
+    if n != k:
+        raise ValueError(f"No se pueden multiplicar: {(m, n)} y {(k, p)}")
 
-    # Inicializar matriz resultado con ceros
-    C = np.zeros((A.shape[0], B.shape[1]))
+    # 3. Inicializar la matriz resultado (m x p)
+    C = np.zeros((m, p))
 
-    # Multiplicación clásica
-    for i in range(A.shape[0]):
-        for j in range(B.shape[1]):
-            for k in range(A.shape[1]):
-                C[i, j] += A[i, k] * B[k, j]
+    # 4. Iterar sobre las filas de A (i) y las columnas de B (j) 
+    for i in range(m):
+        for j in range(p):
+
+            # # Esto es lo que codeamos originalmente. Por una cuestion de performance tuvimos que reemplazarlo por np.sum 
+            # # para que corra el tp en un tiempo razonable. Todos los tests de los labos pasan usando estas dos lineas
+            # # en lugar de la de np.sum
+            # for k in range(n):
+            #     C[i, j] += A[i, k] * B[k, j]
+
+            # El elemento C[i, j] es el producto punto de la fila i de A y la columna j de B.
+            C[i, j] = np.sum(A[i, :] * B[:, j])
 
     # Si el resultado es un vector columna o fila → devolver como 1D
     
@@ -287,9 +297,7 @@ def traspuesta(A):
     At = np.empty((m, n))
 
     for i in range(n):
-        row = A[i]
-        for j in range(m):
-            At[j, i] = row[j]
+        At[:, i] = A[i, :]
     return At
 
 def vector_traspuesto(v):
@@ -376,7 +384,7 @@ def QR_con_GS(A, tol=1e-12, retorna_nops=False):
 
         for k in range (0, j):
             q_k = Q[:, k]
-            r_kj = producto_interno(q_k, q_j_prima)
+            r_kj = multi_matricial(q_k, q_j_prima)
             nops += q_k.shape[0]**2   # operaciones de la mulriplicacion matricial
             
             q_j_prima = q_j_prima - r_kj * q_k
@@ -446,7 +454,7 @@ def calculaQR(A, metodo='RH', tol=1e-12):
 def f_A(A, v, k):
     w = v
     for i in range (k):
-        w = multi_matricial(A, traspuesta(w))
+        w = multi_matricial(A, w)
         norma_2 = norma(w, 2)
         if (norma_2 <= 0): return np.zeros(v.shape[0]) 
         w = w/norma_2
@@ -469,7 +477,7 @@ def metpot2k(A, tol=1e-15, K=1000):
         v_prima = f_A(A, v, 1)
         e = multi_matricial(v_prima, traspuesta(v))
         k += 1
-    autovalor = multi_matricial(v_prima, multi_matricial(A, traspuesta(v_prima)))
+    autovalor = multi_matricial(v_prima, traspuesta(multi_matricial(A, v_prima)))
     e -= 1
     return v, autovalor, k
 
@@ -692,7 +700,7 @@ def matriz_diagonal_a_vector(diagonal_autovalores):
 
 def calcularMatriz(A,B,diagonal_autovalores):
     """Devuelve la matriz faltante para SVD"""
-    matriz_faltante = A@B 
+    matriz_faltante = multi_matricial(A, B) 
     for j in range(matriz_faltante.shape[1]):
         for i in range(matriz_faltante.shape[0]):
             matriz_faltante[i][j] = matriz_faltante[i][j] / diagonal_autovalores[j][j]
@@ -758,7 +766,7 @@ def calcularWconQR(Q, R, Y):
         V_t[:, i] = res_tri_optimizado(R, Q_t[:, i], False)
     
     # Obtengo W
-    W = Y @ traspuesta(V_t)
+    W = multi_matricial(Y, traspuesta(V_t))
     return W
 
 def generarMatrizDeConfusion(W, X, Y):
@@ -777,7 +785,7 @@ def generarMatrizDeConfusion(W, X, Y):
     C = np.zeros((2,2))
     
     #Usamos multiplicacion de matrices de numpy por performance
-    results = W@X
+    results = multi_matricial(W, X)
     
     for i in range(results.shape[1]):
         if results[0][i] > results[1][i]:
@@ -979,7 +987,7 @@ def pinvEcuacionesNormales(X,L,Y):
             U[:, i] = res_tri_optimizado(L_t, Z[:, i], False)
 
         # Calculo W
-        W = Y@U
+        W = multi_matricial(Y, U)
     
     elif n < p:
         # Asumo que L = cholesky(X @ X^T)
@@ -999,11 +1007,11 @@ def pinvEcuacionesNormales(X,L,Y):
         
         V = traspuesta(Vt)
         
-        W = Y@V
+        W = multi_matricial(Y, V)
         
     else:
         # Como la pseudoinversa X^+ = X^-1 entonces W = Y @ X^-1
-        W = Y @ inversa(X)
+        W = multi_matricial(Y, inversa(X))
     return W
 
 # Ejercicio 3
@@ -1016,9 +1024,9 @@ def pinvSVD(U, S, V, Y):
     # Calculamos la pseudo-inversa de X
     V_1 = V[:,:n]
     U_1 = U[:,:n]
-    pseudoInversa = (V_1 @ S_1) @ traspuesta(U_1)
+    pseudoInversa = multi_matricial(multi_matricial(V_1, S_1), traspuesta(U_1))
     
-    W = Y @ pseudoInversa
+    W = multi_matricial(Y, pseudoInversa)
 
     return W
 
@@ -1035,17 +1043,17 @@ def pinvGramSchmidt(Q,R,Y):
 def esPseudoInversa(X, pX, tol = 1e-8):
     #La pseudo inversa es la unica matriz que cumple los 4 puntos mencionados en el tp (al final de la pagina 3)
     # 1) X pX X = X
-    if not matricesIguales((X @ (pX@ X)), X, tol):
+    if not matricesIguales(multi_matricial(X, multi_matricial(pX, X)), X, tol):
         return False
     # 2) pX X pX = pX
-    if not matricesIguales((pX @ (X @ pX)), pX, tol):
+    if not matricesIguales(multi_matricial(pX, multi_matricial(X, pX)), pX, tol):
         return False
     # 3) (X pX)^T = X pX
-    XpX = X @ pX
+    XpX = multi_matricial(X, pX)
     if not matricesIguales(traspuesta(XpX), XpX, tol):
         return False
     # 4) (pX X)^T = pX X
-    pXX = pX @ X
+    pXX = multi_matricial(pX, X)
     if not matricesIguales(traspuesta(pXX), pXX, tol):
         return False
     return True
@@ -1061,15 +1069,15 @@ def cholesky_optimizado(A):
         raise Exception("Para calcular la factorizacion de Cholesky de una matriz, es necesario que esta sea SDP")
     n = A.shape[0]
     L = np.zeros((n, n))
-
+    
     for j in range(n):
         vector_L_j = L[j, :j] 
-        suma_diag = (vector_L_j @ vector_L_j)
+        suma_diag = multi_matricial(vector_L_j, vector_L_j)
         valor_raiz = A[j, j] - suma_diag
         L[j, j] = math.sqrt(valor_raiz)
         for i in range(j + 1, n):
             vector_L_i = L[i, :j]
-            suma_no_diag = (vector_L_i @ vector_L_j)
+            suma_no_diag = multi_matricial(vector_L_i, vector_L_j)
             L[i, j] = (A[i, j] - suma_no_diag) / L[j, j]
 
     return L
@@ -1142,7 +1150,7 @@ def res_tri_optimizado(L, b, inferior=True):
         y = np.zeros(n)
         for i in range(0, n):
             # OPTIMIZACIÓN: vectorizacion del producto interno
-            terminos_restar = L[i, :i] @ y[:i]
+            terminos_restar = multi_matricial(L[i, :i], y[:i])
             
             y_i = b[i] - terminos_restar
             y[i] = y_i / L[i, i]
@@ -1152,12 +1160,12 @@ def res_tri_optimizado(L, b, inferior=True):
         x = np.zeros(n)
         for i in range(n - 1, -1, -1):
             # OPTIMIZACIÓN: vectorizacion del producto interno
-            terminos_restar = L[i, i+1:] @ x[i+1:]
+            terminos_restar = multi_matricial(L[i, i+1:], x[i+1:])
             
             x_i = b[i] - terminos_restar
             x[i] = x_i / L[i, i]
         return x
-
+    
 def svd_reducida_optimizado(A,k="max",tol=1e-15):
     '''A la matriz de interes(de m x n)
     k el numero de valores singulares (y vectores) a retener.
@@ -1184,7 +1192,7 @@ def svd_reducida_optimizado(A,k="max",tol=1e-15):
     return U, vector_epsilon, V 
 
 def calculoSVDReducida_optimizado(A, tol):
-    A_t_A = traspuesta(A) @ A
+    A_t_A = multi_matricial(traspuesta(A), A)
     
     # OPTIMIZACIÓN: usar eigh que calcula diagRH
     
@@ -1224,9 +1232,9 @@ def QR_con_GS_optimizado(A, tol=1e-12, retorna_nops=False):
         q_j_prima = A[:, j] 
         
         # OPTIMIZACION: vectorizar el calculo de todos los coeficientes r_{k,j} para una columna j
-        R_col_j = Q[:, :j].T @ q_j_prima 
+        R_col_j = multi_matricial(Q[:, :j].T, q_j_prima) 
         # OPTIMIZACION: vectorizar la resta de las proyecciones
-        proyeccion = Q[:, :j] @ R_col_j 
+        proyeccion = multi_matricial(Q[:, :j], R_col_j )
         q_j_prima = q_j_prima - proyeccion
         R[:j, j] = R_col_j 
         
@@ -1287,16 +1295,6 @@ def QR_con_HH_optimizado(A, tol=1e-12, retorna_nops=False):
     Q_economica = Q[:, :n]
     
     return Q_economica, R_economica
-
-
-
-
-
-
-
-
-
-
 
 
 
