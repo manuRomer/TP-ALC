@@ -523,6 +523,7 @@ def diagRH(A,tol=1e-15,K=1000):
 ## Laboratorio 7
 
 def matriz_al_azar_valores_entre_0_y_1(n):
+    '''Retorna una matriz aleatoria de NxN entradas'''
     A = np.zeros((n, n))
     for i in range (n):
         for j in range(n):
@@ -530,6 +531,7 @@ def matriz_al_azar_valores_entre_0_y_1(n):
     return A
 
 def normalizar_columnas(A, p):
+    '''Normaliza la columna dada (con norma p)'''
     A = traspuesta(A)
     A = normaliza(A, p)
     return traspuesta(A)
@@ -707,8 +709,8 @@ def calcularMatriz(A,B,diagonal_autovalores):
 ## Funciones necesarias para el Trabajo Practico
 
 def cholesky(A):
-
-    '''Devuelve la matriz L de cholesky'''
+    '''Dada una matriz A, devuelve la matriz L de cholesky asociada a esta'''
+    
     if not(esSDP(A)):
         raise Exception("Para calcular la factorizacion de Cholesky de una matriz, es necesario que esta sea SDP")
     n = A.shape[0]
@@ -727,6 +729,7 @@ def cholesky(A):
     return L
 
 def esDiagonal(A):
+    '''Chequea que la matriz dada sea diagonal'''
     n, m = A.shape
     if n != m:
         return False
@@ -738,6 +741,7 @@ def esDiagonal(A):
     return True
 
 def inversaDeMatrizDiagonal(A):
+    '''Calcula la inversa de una matriz diagonal dada'''
     if (not esDiagonal(A)): 
         print('La matriz no es diagonal')
 
@@ -756,6 +760,8 @@ def deVectorAMatrizInversa(VecEpsilon):
     return matrizEpsilon
 
 def calcularWconQR(Q, R, Y):
+    '''Dada Q y R (factorizacion QR de una matriz) e Y, retorna la matriz de pesos a traves de las matrices Q, R y Y 
+    (calculando la pseudoinversa con Q y R)'''
     # Tengo que resolver V @ R^T = X (Con V = pseudo-inversa de X)
     # Para usar res_tri tengo que resolver a derecha asi que aplico traspuesta a ambos lados y resuelvo R @ V^T = Q^T
     n = R.shape[0]
@@ -766,10 +772,12 @@ def calcularWconQR(Q, R, Y):
     # Calculo V^T
     for i in range(p):
         V_t[:, i] = res_tri(R, Q_t[:, i], False)
+        
+    V = traspuesta(V_t)
     
     # Obtengo W
-    W = multi_matricial(Y, traspuesta(V_t))
-    return W
+    W = multi_matricial(Y, V)
+    return W, V
 
 def generarMatrizDeConfusion(W, X, Y):
     """
@@ -830,6 +838,7 @@ def generarGraficos(matriz_de_confusion_EN, tiempo_EN,
                     matriz_de_confusion_SVD, tiempo_SVD, 
                     matriz_de_confusion_WQRHH, tiempo_QRHH,
                     matriz_de_confusion_WQRGS, tiempo_QRGS):
+    '''genera los graficos de eficiencia y eficacia de los diferentes metodos'''
     
     #Graficos
     metodos = ["EN", "SVD", "QR-HH", "QR-GS"]
@@ -872,40 +881,53 @@ def generarGraficos(matriz_de_confusion_EN, tiempo_EN,
     plt.show()
 
 def obtenerMatricesDeConfusion(Xt, Yt, Xv, Yv):
-    """
-    Dado un set de embeddings de entrenamiento Xt, su target Yt, y un set de embeddings de validacion Xv con sus targets Yv,
+    '''
+    Dado una matriz de embeddings de entrenamiento Xt, su target Yt, y una matriz de embeddings de validacion Xv con sus targets Yv,
     genera 4 matrices de confusion con los metodos de Ecuaciones Normales, SVD, QR con Householder y QR con Gram-Schmidt.
     Ademas, devuelve el tiempo que tardo en obtenerse la matriz de pesos para cada metodo.
-    """
+    '''
     
     # En el contexto del TP n < p, entonces para el algoritmo 1 aplicamos Cholesky sobre X @ X^T
+    
+    print('Inició WEN')
     tiempo_inicio_EN = time.perf_counter()
     L = cholesky(Xt @ traspuesta(Xt))
-    WEN = pinvEcuacionesNormales(Xt, L , Yt)
+    WEN, pXt_EN = pinvEcuacionesNormales(Xt, L , Yt)
     tiempo_fin_EN = time.perf_counter()
     print('Terminó WEN')
+    # Verificamos si es pseudo-inversa
+    print('Es pseudo-inversa con EN: ', esPseudoInversa(Xt, pXt_EN))
     matriz_de_confusion_EN = generarMatrizDeConfusion(WEN, Xv, Yv)
     
+    print('Inició WSVD')
     tiempo_inicio_SVD = time.perf_counter()
     U, s_vector, V = svd_reducida_optimizado(Xt)
     S = np.diag(s_vector)
-    WSVD = pinvSVD(U, S, V, Yt)
+    WSVD,  pXt_SVD= pinvSVD(U, S, V, Yt)
     tiempo_fin_SVD = time.perf_counter()
     print('Terminó WSVD')
+    # Verificamos si es pseudo-inversa
+    print('Es pseudo-inversa con SVD: ', esPseudoInversa(Xt, pXt_SVD))
     matriz_de_confusion_SVD = generarMatrizDeConfusion(WSVD, Xv, Yv)
 
+    print('Inició WQRHH')
     tiempo_inicio_QRHH = time.perf_counter()
     QHH, RHH = QR_con_HH_optimizado(traspuesta(Xt))
-    WQRHH = pinvHouseHolder(QHH, RHH, Yt)
+    WQRHH, pXt_QRHH = pinvHouseHolder(QHH, RHH, Yt)
     tiempo_fin_QRHH = time.perf_counter()
     print('Terminó WQRHH')
+    # Verificamos si es pseudo-inversa
+    print('Es pseudo-inversa con QRHH: ', esPseudoInversa(Xt, pXt_QRHH))
     matriz_de_confusion_WQRHH = generarMatrizDeConfusion(WQRHH, Xv, Yv)
     
+    print('Inició WQRGS')
     tiempo_inicio_QRGS = time.perf_counter()
     QGS, RGS = QR_con_GS(traspuesta(Xt))
-    WQRGS = pinvGramSchmidt(QGS, RGS, Yt)
+    WQRGS, pXt_QRGS = pinvGramSchmidt(QGS, RGS, Yt)
     tiempo_fin_QRGS = time.perf_counter()
     print('Terminó WQRGS')
+    # Verificamos si es pseudo-inversa
+    print('Es pseudo-inversa con QRGS: ', esPseudoInversa(Xt, pXt_QRGS))
     matriz_de_confusion_WQRGS = generarMatrizDeConfusion(WQRGS, Xv, Yv)
 
     tiempo_EN = tiempo_fin_EN - tiempo_inicio_EN
@@ -919,6 +941,7 @@ def obtenerMatricesDeConfusion(Xt, Yt, Xv, Yv):
 
 # Ejercicio 1
 def cargarDataset(carpeta):
+    '''Dada una carpeta, carga los datos de esta en diferentes matrices segun corresponda'''
     # El input carpeta debe ser la ruta completa a la carpeta cats_and_dogs
     # carpetas
     train_cats = os.path.join(carpeta, "train", "cats", "efficientnet_b3_embeddings.npy")
@@ -970,6 +993,10 @@ def cargarDataset(carpeta):
 
 # Ejercicio 2 
 def pinvEcuacionesNormales(X,L,Y):
+    '''Dadas X la matriz de embeddings 
+    L la matriz de Cholesky
+    Y la matriz de targets de entrenamiento
+    Calcula la matriz de pesos W utilizando las ecuaciones normales para la resolucion de la pseudoinversa'''
     n, p = X.shape
     X_t = traspuesta(X)
     L_t = traspuesta(L)
@@ -986,9 +1013,10 @@ def pinvEcuacionesNormales(X,L,Y):
         # Resuelvo el sistema. Sustitución hacia atrás: L^T @ U = Z
         for i in range(n):
             U[:, i] = res_tri(L_t, Z[:, i], False)
-
+        
+        V = U
         # Calculo W
-        W = multi_matricial(Y, U)
+        W = multi_matricial(Y, V)
     
     elif n < p:
         # Asumo que L = cholesky(X @ X^T)
@@ -1007,16 +1035,21 @@ def pinvEcuacionesNormales(X,L,Y):
             Vt[:, i] = res_tri(L_t, Z[:, i], False)
         
         V = traspuesta(Vt)
-        
+        # Calculo W
         W = multi_matricial(Y, V)
         
     else:
         # Como la pseudoinversa X^+ = X^-1 entonces W = Y @ X^-1
-        W = multi_matricial(Y, inversa(X))
-    return W
+        
+        V = inversa(X)
+        # Calculo W
+        W = multi_matricial(Y, V)
+    return W, V
 
 # Ejercicio 3
 def pinvSVD(U, S, V, Y):
+    '''Dadas las maatrices U, S y V de la descomposicion SVD e Y la matriz de Targets de entranamiento, calcula la matriz de pesos W utilizando la descomposicion SVD para la resolucion de la pseudoinversa'''
+    
     n = S.shape[0]
 
     # Calculamos Sigma_1^-1
@@ -1029,19 +1062,22 @@ def pinvSVD(U, S, V, Y):
     
     W = multi_matricial(Y, pseudoInversa)
 
-    return W
+    return W, pseudoInversa
 
 # Ejercicio 4
 def pinvHouseHolder(Q,R,Y):
-    W = calcularWconQR(Q, R, Y)
-    return W
+    '''Dadas las matrices Q,R de la descomposicion QR utilizando HouseHolder e Y la matriz de targets de entrenamiento. La funcion devuelve la matriz de pesos W utilizando la factorizacion QR para la resolucion de la pseudoinversa.'''
+    W, V = calcularWconQR(Q, R, Y)
+    return W, V
 
 def pinvGramSchmidt(Q,R,Y):
-    W = calcularWconQR(Q, R, Y)
-    return W
+    '''Dadas las matrices Q,R de la descomposicion QR utilizando GramSchimdt e Y la matriz de targets de entrenamiento. La funcion devuelve la matriz de pesos W utilizando la factorizacion QR para la resolucion de la pseudoinversa.'''
+    W, V = calcularWconQR(Q, R, Y)
+    return W, V
 
 # Ejercicio 5
 def esPseudoInversa(X, pX, tol = 1e-8):
+    '''Chequeo si dadas dos matrices, X y pX, pX es la pseudoinversa de X'''
     #La pseudo inversa es la unica matriz que cumple los 4 puntos mencionados en el tp (al final de la pagina 3)
     # 1) X pX X = X
     if not matricesIguales(multi_matricial(X, multi_matricial(pX, X)), X, tol):
@@ -1067,6 +1103,7 @@ def svd_reducida_optimizado(A,k="max",tol=1e-15):
     '''
     
     m,n = A.shape
+    #Si m < n calculamos primero U. 
     if m < n:
         A = traspuesta(A)
     
@@ -1082,9 +1119,8 @@ def svd_reducida_optimizado(A,k="max",tol=1e-15):
     return U, vector_epsilon, V 
 
 def calculoSVDReducida_optimizado(A, tol):
-    '''
-    Esta funcion utiliza eigh para calcular autovectores y autovalores.
-    '''
+    '''Calculo de la factorizacion SVD de A utilizando eigh para mayor velocidad'''
+    A_t_A = multi_matricial(traspuesta(A), A)
     
     A_t_A = multi_matricial(traspuesta(A), A)
     
