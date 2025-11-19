@@ -775,14 +775,9 @@ def calcularWconQR(Q, R, Y):
         
     V = traspuesta(V_t)
     
-    #Me fijo si V es la pseudoinversa de X
-    X = multi_matricial(Q,R)
-    if esPseudoInversa(X,V):
-        print("El metodo QR calcula correctamente la pseudoinversa")
-    
     # Obtengo W
     W = multi_matricial(Y, V)
-    return W
+    return W, V
 
 def generarMatrizDeConfusion(W, X, Y):
     """
@@ -893,33 +888,46 @@ def obtenerMatricesDeConfusion(Xt, Yt, Xv, Yv):
     '''
     
     # En el contexto del TP n < p, entonces para el algoritmo 1 aplicamos Cholesky sobre X @ X^T
+    
+    print('Inició WEN')
     tiempo_inicio_EN = time.perf_counter()
     L = cholesky(Xt @ traspuesta(Xt))
-    WEN = pinvEcuacionesNormales(Xt, L , Yt)
+    WEN, pXt_EN = pinvEcuacionesNormales(Xt, L , Yt)
     tiempo_fin_EN = time.perf_counter()
     print('Terminó WEN')
+    # Verificamos si es pseudo-inversa
+    print('Es pseudo-inversa con EN: ', esPseudoInversa(Xt, pXt_EN))
     matriz_de_confusion_EN = generarMatrizDeConfusion(WEN, Xv, Yv)
     
+    print('Inició WSVD')
     tiempo_inicio_SVD = time.perf_counter()
     U, s_vector, V = svd_reducida_optimizado(Xt)
     S = np.diag(s_vector)
-    WSVD = pinvSVD(U, S, V, Yt)
+    WSVD,  pXt_SVD= pinvSVD(U, S, V, Yt)
     tiempo_fin_SVD = time.perf_counter()
     print('Terminó WSVD')
+    # Verificamos si es pseudo-inversa
+    print('Es pseudo-inversa con SVD: ', esPseudoInversa(Xt, pXt_SVD))
     matriz_de_confusion_SVD = generarMatrizDeConfusion(WSVD, Xv, Yv)
 
+    print('Inició WQRHH')
     tiempo_inicio_QRHH = time.perf_counter()
     QHH, RHH = QR_con_HH_optimizado(traspuesta(Xt))
-    WQRHH = pinvHouseHolder(QHH, RHH, Yt)
+    WQRHH, pXt_QRHH = pinvHouseHolder(QHH, RHH, Yt)
     tiempo_fin_QRHH = time.perf_counter()
     print('Terminó WQRHH')
+    # Verificamos si es pseudo-inversa
+    print('Es pseudo-inversa con QRHH: ', esPseudoInversa(Xt, pXt_QRHH))
     matriz_de_confusion_WQRHH = generarMatrizDeConfusion(WQRHH, Xv, Yv)
     
+    print('Inició WQRGS')
     tiempo_inicio_QRGS = time.perf_counter()
     QGS, RGS = QR_con_GS(traspuesta(Xt))
-    WQRGS = pinvGramSchmidt(QGS, RGS, Yt)
+    WQRGS, pXt_QRGS = pinvGramSchmidt(QGS, RGS, Yt)
     tiempo_fin_QRGS = time.perf_counter()
     print('Terminó WQRGS')
+    # Verificamos si es pseudo-inversa
+    print('Es pseudo-inversa con QRGS: ', esPseudoInversa(Xt, pXt_QRGS))
     matriz_de_confusion_WQRGS = generarMatrizDeConfusion(WQRGS, Xv, Yv)
 
     tiempo_EN = tiempo_fin_EN - tiempo_inicio_EN
@@ -1006,12 +1014,9 @@ def pinvEcuacionesNormales(X,L,Y):
         for i in range(n):
             U[:, i] = res_tri(L_t, Z[:, i], False)
         
-        #Me fijo si U es la pseudoinversa de X
-        if esPseudoInversa(X,U):
-            print("El metodo Cholesky calcula correctamente la pseudoinversa cuando n>p")
-        
+        V = U
         # Calculo W
-        W = multi_matricial(Y, U)
+        W = multi_matricial(Y, V)
     
     elif n < p:
         # Asumo que L = cholesky(X @ X^T)
@@ -1030,24 +1035,16 @@ def pinvEcuacionesNormales(X,L,Y):
             Vt[:, i] = res_tri(L_t, Z[:, i], False)
         
         V = traspuesta(Vt)
-        
-        #Me fijo si V es la pseudoinversa de X
-        if esPseudoInversa(X,V):
-            print("El metodo Cholesky calcula correctamente la pseudoinversa cuando n<p")
-        
+        # Calculo W
         W = multi_matricial(Y, V)
         
     else:
         # Como la pseudoinversa X^+ = X^-1 entonces W = Y @ X^-1
         
-        pseudoInversa = inversa(X)
-        
-        #Me fijo si pseudoInversa es la pseudoinversa de X
-        if esPseudoInversa(X,pseudoInversa):
-            print("El metodo Cholesky calcula correctamente la pseudoinversa cuando n=p")
-        
-        W = multi_matricial(Y, pseudoInversa)
-    return W
+        V = inversa(X)
+        # Calculo W
+        W = multi_matricial(Y, V)
+    return W, V
 
 # Ejercicio 3
 def pinvSVD(U, S, V, Y):
@@ -1063,26 +1060,20 @@ def pinvSVD(U, S, V, Y):
     U_1 = U[:,:n]
     pseudoInversa = multi_matricial(multi_matricial(V_1, S_1), traspuesta(U_1))
     
-    #Verificamos que la matriz sea la pseudoinversa
-    #Primero, reconstruimos X
-    X = multi_matricial(U, multi_matricial(S, traspuesta(V)))
-    if esPseudoInversa(X, pseudoInversa):
-        print("El metodo SVD calcula correctamente la pseudoinversa")
-    
     W = multi_matricial(Y, pseudoInversa)
 
-    return W
+    return W, pseudoInversa
 
 # Ejercicio 4
 def pinvHouseHolder(Q,R,Y):
     '''Dadas las matrices Q,R de la descomposicion QR utilizando HouseHolder e Y la matriz de targets de entrenamiento. La funcion devuelve la matriz de pesos W utilizando la factorizacion QR para la resolucion de la pseudoinversa.'''
-    W = calcularWconQR(Q, R, Y)
-    return W
+    W, V = calcularWconQR(Q, R, Y)
+    return W, V
 
 def pinvGramSchmidt(Q,R,Y):
     '''Dadas las matrices Q,R de la descomposicion QR utilizando GramSchimdt e Y la matriz de targets de entrenamiento. La funcion devuelve la matriz de pesos W utilizando la factorizacion QR para la resolucion de la pseudoinversa.'''
-    W = calcularWconQR(Q, R, Y)
-    return W
+    W, V = calcularWconQR(Q, R, Y)
+    return W, V
 
 # Ejercicio 5
 def esPseudoInversa(X, pX, tol = 1e-8):
