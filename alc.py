@@ -772,9 +772,16 @@ def calcularWconQR(Q, R, Y):
     # Calculo V^T
     for i in range(p):
         V_t[:, i] = res_tri(R, Q_t[:, i], False)
+        
+    V = traspuesta(V_t)
+    
+    #Me fijo si V es la pseudoinversa de X
+    X = multi_matricial(Q,R)
+    if esPseudoInversa(X,V):
+        print("El metodo QR calcula correctamente la pseudoinversa")
     
     # Obtengo W
-    W = multi_matricial(Y, traspuesta(V_t))
+    W = multi_matricial(Y, V)
     return W
 
 def generarMatrizDeConfusion(W, X, Y):
@@ -999,7 +1006,11 @@ def pinvEcuacionesNormales(X,L,Y):
         # Resuelvo el sistema. Sustitución hacia atrás: L^T @ U = Z
         for i in range(n):
             U[:, i] = res_tri(L_t, Z[:, i], False)
-
+        
+        #Me fijo si U es la pseudoinversa de X
+        if esPseudoInversa(X,U):
+            print("El metodo Cholesky calcula correctamente la pseudoinversa cuando n>p")
+        
         # Calculo W
         W = multi_matricial(Y, U)
     
@@ -1021,11 +1032,22 @@ def pinvEcuacionesNormales(X,L,Y):
         
         V = traspuesta(Vt)
         
+        #Me fijo si V es la pseudoinversa de X
+        if esPseudoInversa(X,V):
+            print("El metodo Cholesky calcula correctamente la pseudoinversa cuando n<p")
+        
         W = multi_matricial(Y, V)
         
     else:
         # Como la pseudoinversa X^+ = X^-1 entonces W = Y @ X^-1
-        W = multi_matricial(Y, inversa(X))
+        
+        pseudoInversa = inversa(X)
+        
+        #Me fijo si pseudoInversa es la pseudoinversa de X
+        if esPseudoInversa(X,pseudoInversa):
+            print("El metodo Cholesky calcula correctamente la pseudoinversa cuando n=p")
+        
+        W = multi_matricial(Y, pseudoInversa)
     return W
 
 # Ejercicio 3
@@ -1041,6 +1063,12 @@ def pinvSVD(U, S, V, Y):
     V_1 = V[:,:n]
     U_1 = U[:,:n]
     pseudoInversa = multi_matricial(multi_matricial(V_1, S_1), traspuesta(U_1))
+    
+    #Verificamos que la matriz sea la pseudoinversa
+    #Primero, reconstruimos X
+    X = multi_matricial(U, multi_matricial(S, traspuesta(V)))
+    if esPseudoInversa(X, pseudoInversa):
+        print("El metodo SVD calcula correctamente la pseudoinversa")
     
     W = multi_matricial(Y, pseudoInversa)
 
