@@ -1318,7 +1318,7 @@ def diagRH_con_arroba(A, tol=1e-15,K=1):
     else:
         B = (H_v1 @ (A @ traspuesta(H_v1))).astype(dtype)
         A_prima = B[1:,1:]
-        S_prima, D_prima = diagRH_optimizado(A_prima, tol, K)
+        S_prima, D_prima = diagRH_con_arroba(A_prima, tol, K)
         print(n)
         D = np.zeros((n, n), dtype=dtype)
         D[0][0] = lambda1
