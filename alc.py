@@ -523,6 +523,7 @@ def diagRH(A,tol=1e-15,K=1000):
 ## Laboratorio 7
 
 def matriz_al_azar_valores_entre_0_y_1(n):
+    '''Retorna una matriz aleatoria de NxN entradas'''
     A = np.zeros((n, n))
     for i in range (n):
         for j in range(n):
@@ -530,6 +531,7 @@ def matriz_al_azar_valores_entre_0_y_1(n):
     return A
 
 def normalizar_columnas(A, p):
+    '''Normaliza la columna dada (con norma p)'''
     A = traspuesta(A)
     A = normaliza(A, p)
     return traspuesta(A)
@@ -707,8 +709,8 @@ def calcularMatriz(A,B,diagonal_autovalores):
 ## Funciones necesarias para el Trabajo Practico
 
 def cholesky(A):
-
-    '''Devuelve la matriz L de cholesky'''
+    '''Dada una matriz A, devuelve la matriz L de cholesky asociada a esta'''
+    
     if not(esSDP_optimizado(A)):
         raise Exception("Para calcular la factorizacion de Cholesky de una matriz, es necesario que esta sea SDP")
     n = A.shape[0]
@@ -727,6 +729,7 @@ def cholesky(A):
     return L
 
 def esDiagonal(A):
+    '''Chequea que la matriz dada sea diagonal'''
     n, m = A.shape
     if n != m:
         return False
@@ -738,6 +741,7 @@ def esDiagonal(A):
     return True
 
 def inversaDeMatrizDiagonal(A):
+    '''Calcula la inversa de una matriz diagonal dada'''
     if (not esDiagonal(A)): 
         print('La matriz no es diagonal')
 
@@ -756,6 +760,8 @@ def deVectorAMatrizInversa(VecEpsilon):
     return matrizEpsilon
 
 def calcularWconQR(Q, R, Y):
+    '''Dada Q y R (factorizacion QR de una matriz) e Y, retorna la matriz de pesos a traves de las matrices Q, R y Y 
+    (calculando la pseudoinversa con Q y R)'''
     # Tengo que resolver V @ R^T = X (Con V = pseudo-inversa de X)
     # Para usar res_tri tengo que resolver a derecha asi que aplico traspuesta a ambos lados y resuelvo R @ V^T = Q^T
     n = R.shape[0]
@@ -772,7 +778,7 @@ def calcularWconQR(Q, R, Y):
     return W
 
 def generarMatrizDeConfusion(W, X, Y):
-    """
+    '''
     Genera una matriz de confusion C 2x2 dada una matriz de pesos W, una matriz de embeddings X y una matriz de targets Y
     
     C[0][0] es TP: Imagenes de gatos predichas correctamente como gatos
@@ -782,7 +788,7 @@ def generarMatrizDeConfusion(W, X, Y):
     C[1][0] es FP: Imagenes de perros predichas como gatos
     
     C[1][1] es TN: Imagenes de perros predichas correctamente como perros
-    """
+    '''
     
     C = np.zeros((2,2))
     
@@ -815,7 +821,7 @@ def generarMatrizDeConfusion(W, X, Y):
     return C
 
 def extraerPorcentajes(C):
-    """Dada una matriz de confusion C, extrae los porcentajes de True Positive, False Positive, True Negative y False Negative"""
+    '''Dada una matriz de confusion C, extrae los porcentajes de True Positive, False Positive, True Negative y False Negative'''
     C00, C01 = C[0,0], C[0,1]
     C10, C11 = C[1,0], C[1,1]
 
@@ -831,6 +837,7 @@ def generarGraficos(matriz_de_confusion_EN, tiempo_EN,
                     matriz_de_confusion_SVD, tiempo_SVD, 
                     matriz_de_confusion_WQRHH, tiempo_QRHH,
                     matriz_de_confusion_WQRGS, tiempo_QRGS):
+    '''genera los graficos de eficiencia y eficacia de los diferentes metodos'''
     
     #Graficos
     metodos = ["EN", "SVD", "QR-HH", "QR-GS"]
@@ -873,11 +880,11 @@ def generarGraficos(matriz_de_confusion_EN, tiempo_EN,
     plt.show()
 
 def obtenerMatricesDeConfusion(Xt, Yt, Xv, Yv):
-    """
-    Dado un set de embeddings de entrenamiento Xt, su target Yt, y un set de embeddings de validacion Xv con sus targets Yv,
+    '''
+    Dado una matriz de embeddings de entrenamiento Xt, su target Yt, y una matriz de embeddings de validacion Xv con sus targets Yv,
     genera 4 matrices de confusion con los metodos de Ecuaciones Normales, SVD, QR con Householder y QR con Gram-Schmidt.
     Ademas, devuelve el tiempo que tardo en obtenerse la matriz de pesos para cada metodo.
-    """
+    '''
     
     # En el contexto del TP n < p, entonces para el algoritmo 1 aplicamos Cholesky sobre X @ X^T
     tiempo_inicio_EN = time.perf_counter()
@@ -920,6 +927,7 @@ def obtenerMatricesDeConfusion(Xt, Yt, Xv, Yv):
 
 # Ejercicio 1
 def cargarDataset(carpeta):
+    '''Dada una carpeta, carga los datos de esta en diferentes matrices segun corresponda'''
     # El input carpeta debe ser la ruta completa a la carpeta cats_and_dogs
     # carpetas
     train_cats = os.path.join(carpeta, "train", "cats", "efficientnet_b3_embeddings.npy")
@@ -971,6 +979,10 @@ def cargarDataset(carpeta):
 
 # Ejercicio 2 
 def pinvEcuacionesNormales(X,L,Y):
+    '''Dadas X la matriz de embeddings 
+    L la matriz de Cholesky
+    Y la matriz de targets de entrenamiento
+    Calcula la matriz de pesos W utilizando las ecuaciones normales para la resolucion de la pseudoinversa'''
     n, p = X.shape
     X_t = traspuesta(X)
     L_t = traspuesta(L)
@@ -1018,6 +1030,8 @@ def pinvEcuacionesNormales(X,L,Y):
 
 # Ejercicio 3
 def pinvSVD(U, S, V, Y):
+    '''Dadas las maatrices U, S y V de la descomposicion SVD e Y la matriz de Targets de entranamiento, calcula la matriz de pesos W utilizando la descomposicion SVD para la resolucion de la pseudoinversa'''
+    
     n = S.shape[0]
 
     # Calculamos Sigma_1^-1
@@ -1034,15 +1048,18 @@ def pinvSVD(U, S, V, Y):
 
 # Ejercicio 4
 def pinvHouseHolder(Q,R,Y):
+    '''Dadas las matrices Q,R de la descomposicion QR utilizando HouseHolder e Y la matriz de targets de entrenamiento. La funcion devuelve la matriz de pesos W utilizando la factorizacion QR para la resolucion de la pseudoinversa.'''
     W = calcularWconQR(Q, R, Y)
     return W
 
 def pinvGramSchmidt(Q,R,Y):
+    '''Dadas las matrices Q,R de la descomposicion QR utilizando GramSchimdt e Y la matriz de targets de entrenamiento. La funcion devuelve la matriz de pesos W utilizando la factorizacion QR para la resolucion de la pseudoinversa.'''
     W = calcularWconQR(Q, R, Y)
     return W
 
 # Ejercicio 5
 def esPseudoInversa(X, pX, tol = 1e-8):
+    '''Chequeo si dadas dos matrices, X y pX, pX es la pseudoinversa de X'''
     #La pseudo inversa es la unica matriz que cumple los 4 puntos mencionados en el tp (al final de la pagina 3)
     # 1) X pX X = X
     if not matricesIguales(multi_matricial(X, multi_matricial(pX, X)), X, tol):
@@ -1068,12 +1085,12 @@ def esPseudoInversa(X, pX, tol = 1e-8):
 # Con todas las multi_matricial reemplazadas por @, y K=5 tardaba unos 22 segundos para hacer 5 pasos recursivos. Proyeccion de 2hs
 # Preferimos recurrir a eigh de scipy.linalg para hacer el calculo de diagRH. Asi, tarda unos 80 segundos nada mas lo cual es mas razonable.
 def calculaLDV_optimizado(A):
-    """
+    '''
     Calcula la factorizacion LDV de la matriz A, de forma tal que A =
     LDV, con L triangular inferior, D diagonal y V triangular
     superior. En caso de que la matriz no pueda factorizarse
     retorna None.
-    """
+    '''
     L, U, nops1 = calculaLU(A) 
     if (L is None): return None, None, None, 0
     Ut = traspuesta(U)
@@ -1082,10 +1099,10 @@ def calculaLDV_optimizado(A):
     return L, D, traspuesta(V) , nops1 + nops2
 
 def esSDP_optimizado(A, atol=1e-15):
-    """
+    '''
     Checkea si la matriz A es simetrica definida positiva (SDP) usando
     la factorizacion LDV.
-    """
+    '''
     if (not simetrica(A)): return False
 
     L, D, V, nops = calculaLDV_optimizado(A)
@@ -1120,6 +1137,7 @@ def svd_reducida_optimizado(A,k="max",tol=1e-15):
     return U, vector_epsilon, V 
 
 def calculoSVDReducida_optimizado(A, tol):
+    '''Calculo de la factorizacion SVD de A utilizando eigh para mayor velocidad'''
     A_t_A = multi_matricial(traspuesta(A), A)
     
     # OPTIMIZACIÓN: usar eigh que calcula diagRH
@@ -1136,12 +1154,12 @@ def calculoSVDReducida_optimizado(A, tol):
 # En cuanto al calculo de QR con HH, tardaba muchisimo (horas) con nuestra implementacion de multi_matricial. Simplemente reemplazamos esas por @
 
 def QR_con_HH_optimizado(A, tol=1e-12, retorna_nops=False):
-    """
+    '''
     A una matriz de mxn (m >= n)
     tol la tolerancia con la que se filtran elementos nulos en R
     retorna matrices Q y R calculadas con reflexiones de Householder
     Si la matriz A no cumple m >= n, debe retornar None
-    """
+    '''
     m, n = A.shape
     if (m < n): return None, None
 
