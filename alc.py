@@ -834,109 +834,6 @@ def extraerPorcentajes(C):
 
     return TP/total, FP/total, TN/total, FN/total
 
-def generarGraficos(matriz_de_confusion_EN, tiempo_EN, 
-                    matriz_de_confusion_SVD, tiempo_SVD, 
-                    matriz_de_confusion_WQRHH, tiempo_QRHH,
-                    matriz_de_confusion_WQRGS, tiempo_QRGS):
-    '''genera los graficos de eficiencia y eficacia de los diferentes metodos'''
-    
-    #Graficos
-    metodos = ["EN", "SVD", "QR-HH", "QR-GS"]
-    TP_vals = []
-    FP_vals = []
-    TN_vals = []
-    FN_vals = []
-
-    #Tiempos
-    tiempos = [tiempo_EN, tiempo_SVD, tiempo_QRHH, tiempo_QRGS]
-    plt.figure()
-    plt.bar(metodos, tiempos)
-    plt.ylabel("Tiempo en segundos")
-    plt.title("Comparativa de tiempos de ejecucion para el calculo de W")
-    plt.tight_layout()
-    plt.show()
-    
-    for C in [matriz_de_confusion_EN, matriz_de_confusion_SVD, matriz_de_confusion_WQRHH, matriz_de_confusion_WQRGS]:
-        TP, FP, TN, FN = extraerPorcentajes(C)
-        TP_vals.append(TP)
-        FP_vals.append(FP)
-        TN_vals.append(TN)
-        FN_vals.append(FN)
-    
-    fig, axs = plt.subplots(2, 2, figsize=(10, 8))
-    
-    for i, metodo in enumerate(metodos):
-        #Posicion en el grafico
-        ax = axs[i // 2, i % 2] 
-        
-        values = [TP_vals[i], FP_vals[i], TN_vals[i], FN_vals[i]]
-        
-        ax.bar(['TP', 'FP', 'TN', 'FN'], values, color=['skyblue', 'lightcoral', 'lightgreen', 'salmon'])
-        
-        ax.set_title(f'Método {metodo}')
-        ax.set_ylabel('Porcentaje')
-    
-    plt.tight_layout()
-
-    plt.show()
-
-def obtenerMatricesDeConfusion(Xt, Yt, Xv, Yv):
-    '''
-    Dado una matriz de embeddings de entrenamiento Xt, su target Yt, y una matriz de embeddings de validacion Xv con sus targets Yv,
-    genera 4 matrices de confusion con los metodos de Ecuaciones Normales, SVD, QR con Householder y QR con Gram-Schmidt.
-    Ademas, devuelve el tiempo que tardo en obtenerse la matriz de pesos para cada metodo.
-    '''
-    
-    # En el contexto del TP n < p, entonces para el algoritmo 1 aplicamos Cholesky sobre X @ X^T
-    
-    print('Inició WEN')
-    tiempo_inicio_EN = time.perf_counter()
-    L = cholesky(Xt @ traspuesta(Xt))
-    WEN, pXt_EN = pinvEcuacionesNormales(Xt, L , Yt)
-    tiempo_fin_EN = time.perf_counter()
-    print('Terminó WEN')
-    # Verificamos si es pseudo-inversa
-    print('Es pseudo-inversa con EN: ', esPseudoInversa(Xt, pXt_EN))
-    matriz_de_confusion_EN = generarMatrizDeConfusion(WEN, Xv, Yv)
-    
-    print('Inició WSVD')
-    tiempo_inicio_SVD = time.perf_counter()
-    U, s_vector, V = svd_reducida_optimizado(Xt)
-    S = np.diag(s_vector)
-    WSVD,  pXt_SVD= pinvSVD(U, S, V, Yt)
-    tiempo_fin_SVD = time.perf_counter()
-    print('Terminó WSVD')
-    # Verificamos si es pseudo-inversa
-    print('Es pseudo-inversa con SVD: ', esPseudoInversa(Xt, pXt_SVD))
-    matriz_de_confusion_SVD = generarMatrizDeConfusion(WSVD, Xv, Yv)
-
-    print('Inició WQRHH')
-    tiempo_inicio_QRHH = time.perf_counter()
-    QHH, RHH = QR_con_HH_optimizado(traspuesta(Xt))
-    WQRHH, pXt_QRHH = pinvHouseHolder(QHH, RHH, Yt)
-    tiempo_fin_QRHH = time.perf_counter()
-    print('Terminó WQRHH')
-    # Verificamos si es pseudo-inversa
-    print('Es pseudo-inversa con QRHH: ', esPseudoInversa(Xt, pXt_QRHH))
-    matriz_de_confusion_WQRHH = generarMatrizDeConfusion(WQRHH, Xv, Yv)
-    
-    print('Inició WQRGS')
-    tiempo_inicio_QRGS = time.perf_counter()
-    QGS, RGS = QR_con_GS(traspuesta(Xt))
-    WQRGS, pXt_QRGS = pinvGramSchmidt(QGS, RGS, Yt)
-    tiempo_fin_QRGS = time.perf_counter()
-    print('Terminó WQRGS')
-    # Verificamos si es pseudo-inversa
-    print('Es pseudo-inversa con QRGS: ', esPseudoInversa(Xt, pXt_QRGS))
-    matriz_de_confusion_WQRGS = generarMatrizDeConfusion(WQRGS, Xv, Yv)
-
-    tiempo_EN = tiempo_fin_EN - tiempo_inicio_EN
-    tiempo_SVD = tiempo_fin_SVD - tiempo_inicio_SVD
-    tiempo_QRHH = tiempo_fin_QRHH - tiempo_inicio_QRHH
-    tiempo_QRGS = tiempo_fin_QRGS - tiempo_inicio_QRGS
-    
-    return matriz_de_confusion_EN,matriz_de_confusion_SVD,matriz_de_confusion_WQRHH,matriz_de_confusion_WQRGS,tiempo_EN,tiempo_SVD,tiempo_QRHH,tiempo_QRGS
-
 ## Soluciones a los ejercicios del TP
 
 # Ejercicio 1
@@ -1330,14 +1227,14 @@ def diagRH_con_arroba(A, tol=1e-15,K=1):
 
 def svd_reducida_con_arroba(A,k="max",tol=1e-15):
     '''
-    Esta funcion no tiene ninguna optimizacion, solo llama a calculoSVDReducida_optimizado
+    Esta funcion no tiene ninguna optimizacion, solo llama a calculoSVDReducida_con_arroba
     '''
     
     m,n = A.shape
     if m < n:
         A = traspuesta(A)
     
-    U, diagonal_autovalores, V = calculoSVDReducida_optimizado(A, tol)
+    U, diagonal_autovalores, V = calculoSVDReducida_con_arroba(A, tol)
     if m < n:
         U, V = V, U        
     
