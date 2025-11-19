@@ -709,7 +709,7 @@ def calcularMatriz(A,B,diagonal_autovalores):
 def cholesky(A):
 
     '''Devuelve la matriz L de cholesky'''
-    if not(esSDP_optimizado(A)):
+    if not(esSDP(A)):
         raise Exception("Para calcular la factorizacion de Cholesky de una matriz, es necesario que esta sea SDP")
     n = A.shape[0]
     L = np.zeros((n, n))
@@ -786,7 +786,6 @@ def generarMatrizDeConfusion(W, X, Y):
     
     C = np.zeros((2,2))
     
-    #Usamos multiplicacion de matrices de numpy por performance
     results = multi_matricial(W, X)
     
     for i in range(results.shape[1]):
@@ -1062,53 +1061,16 @@ def esPseudoInversa(X, pX, tol = 1e-8):
 
 ## Funciones optimizadas para poder correr el TP en un tiempo razonable:
 
-# En cuanto a el calculo de svd, intentamos de todo, cambiar K, las multiplicaciones matriciales por @, todas las funciones de np que pudimos
-# Sin embargo, la recursion seguia tardando muchisimo. Cosas que probamos para acelerar el calculo de diagRH:
-# Con nuestra implementacion de multi_matricial (y usando np.sum), y K=5 tardaba unos 50 segundos para hacer 1 solo paso recursivo. Proyeccion de unas 20hs.
-# Con todas las multi_matricial reemplazadas por @, y K=5 tardaba unos 22 segundos para hacer 5 pasos recursivos. Proyeccion de 2hs
-# Preferimos recurrir a eigh de scipy.linalg para hacer el calculo de diagRH. Asi, tarda unos 80 segundos nada mas lo cual es mas razonable.
-def calculaLDV_optimizado(A):
-    """
-    Calcula la factorizacion LDV de la matriz A, de forma tal que A =
-    LDV, con L triangular inferior, D diagonal y V triangular
-    superior. En caso de que la matriz no pueda factorizarse
-    retorna None.
-    """
-    L, U, nops1 = calculaLU(A) 
-    if (L is None): return None, None, None, 0
-    Ut = traspuesta(U)
-    V, D , nops2= calculaLU(Ut) 
-
-    return L, D, traspuesta(V) , nops1 + nops2
-
-def esSDP_optimizado(A, atol=1e-15):
-    """
-    Checkea si la matriz A es simetrica definida positiva (SDP) usando
-    la factorizacion LDV.
-    """
-    if (not simetrica(A)): return False
-
-    L, D, V, nops = calculaLDV_optimizado(A)
-    if (D is None): return False
-    for i in range(A.shape[0]):
-        if (D[i][i] <= 0): return False
-    return True
-   
 def svd_reducida_optimizado(A,k="max",tol=1e-15):
-    '''A la matriz de interes(de m x n)
-    k el numero de valores singulares (y vectores) a retener.
-    tol la tolerancia para considerar un valor singular igual a cero
-    Retorna hatU (matriz de m x k), hatSig (vector de k valores singulares) y hatV (matriz de n x k) '''
+    '''
+    Esta funcion no tiene ninguna optimizacion, solo llama a calculoSVDReducida_optimizado
+    '''
     
     m,n = A.shape
-    #Optimizacion, si m < n calculamos primero U. 
     if m < n:
         A = traspuesta(A)
     
     U, diagonal_autovalores, V = calculoSVDReducida_optimizado(A, tol)
-    
-    #Si m<n, se calculó primero U, que en la SVD de At toma el lugar de V (At = V Et Ut).
-    #Swapeamos entonces para arreglar.
     if m < n:
         U, V = V, U        
     
@@ -1120,9 +1082,11 @@ def svd_reducida_optimizado(A,k="max",tol=1e-15):
     return U, vector_epsilon, V 
 
 def calculoSVDReducida_optimizado(A, tol):
-    A_t_A = multi_matricial(traspuesta(A), A)
+    '''
+    Esta funcion utiliza eigh para calcular autovectores y autovalores.
+    '''
     
-    # OPTIMIZACIÓN: usar eigh que calcula diagRH
+    A_t_A = multi_matricial(traspuesta(A), A)
     
     w, V = eigh(A_t_A)
     diagonal_autovalores = np.diag(w)
@@ -1133,7 +1097,9 @@ def calculoSVDReducida_optimizado(A, tol):
     
     return U_hat, epsilon_hat, V_hat
 
-# En cuanto al calculo de QR con HH, tardaba muchisimo (horas) con nuestra implementacion de multi_matricial. Simplemente reemplazamos esas por @
+'''
+En cuanto al calculo de QR con HH, tardaba muchisimo (horas) con nuestra implementacion de multi_matricial. Simplemente reemplazamos esas por @
+'''
 
 def QR_con_HH_optimizado(A, tol=1e-12, retorna_nops=False):
     """
@@ -1176,7 +1142,264 @@ def QR_con_HH_optimizado(A, tol=1e-12, retorna_nops=False):
     
     return Q_economica, R_economica
 
+## Funciones extra para calcular, comparar y/o estimar tiempos de ejecucion. rt por execution time
+
+def QR_con_HH_sin_arroba(A, numeroDeIteraciones, tol=1e-12):
+    '''
+    Esta funcion realiza las primeras iteraciones de QR_con_HH, utilizando nuestra implementacion de multi_matricial.
+    '''
+    m, n = A.shape
+    if (m < n): return None, None
+
+    R = A.copy()
+    Q = np.eye(m)
+
+    for k in range(numeroDeIteraciones):
+        x = R[k:, k]
+        alpha = -np.sign(x[0])*norma(x, 2)
+        e1 = np.zeros(x.shape[0])
+        e1[0] = 1
+        u = x- alpha * e1
+        normaU = norma(u, 2)
+        if normaU > tol:
+            u /= normaU
+
+            # OPTIMIZACION: plicar la transformación de Householder directamente a las matrices R y Q sin formar H_k, vectorizanco 
+            # actualizao R
+            uR = multi_matricial(u, R[k:, k:])
+            u = u.reshape(-1, 1)   
+            uR = uR.reshape(1, -1)
+            R[k:, k:] -= 2.0 * multi_matricial(u, uR)
+
+            # actualizo Q
+            Qu = multi_matricial(Q[:, k:], u)
+            Qu = Qu.reshape(-1, 1)   
+            u = u.reshape(1, -1)
+            Q[:, k:] -= 2.0 * multi_matricial(Qu, u)
+
+    R_economica = R[:n, :] 
+    Q_economica = Q[:, :n]
+    
+    return 
+
+def diagRH_sin_arroba(A, K, numeroDeRecursiones,tol=1e-15):
+    '''
+    Esta funcion realiza los primeros pasos recursivos de diagRH, utilizando nuestra implementacion de multi_matricial.
+    Debido a que metpot2k no cambia significativamente el tiempo de ejecicion utilizando @ en lugar de nuestra multi_matricial,
+    optamos por dejar tanto metpot2k como f_A con multi_matricial.
+    Esta funcion permite variar tanto el K, es decir la cantidad de iteraciones para el metodo de la potencia como la cantidad de pasos
+    recursivos a realizar.
+    '''
+    if numeroDeRecursiones == 0:
+        return
+    n = A.shape[0]
+    v1, lambda1, k = metpot2k(A, tol, K)
+    e1 = np.zeros(v1.shape[0])
+    e1[0] = 1
+
+    sign = 1.0 if v1[0] >= 0 else -1.0
+    w = v1 + sign * norma(v1, 2) * e1
+
+    nw = norma(w, 2)
+    if (nw < tol):
+        H_v1 = np.eye(n)
+    else:
+        w = w / nw
+        H_v1 = np.eye(n) - 2.0 * multi_matricial(traspuesta(w), w)
+
+    if (n == 1):
+        S = H_v1
+        D = multi_matricial(H_v1, multi_matricial(A, traspuesta(H_v1)))
+        return
+    
+    else:
+        B = multi_matricial(H_v1, multi_matricial(A, traspuesta(H_v1)))
+        A_prima = B[1:,1:]
+        diagRH_sin_arroba(A_prima, K, numeroDeRecursiones-1,tol=1e-15)
+        # Aca estamos incluso ahorrando una multiplicacion matricial correspondiente a S = multi_matricial(H_v1, S)
+        return
+
+def proyeccion_y_rt_QR_con_HH_sin_arroba(Xt, i):
+    A = traspuesta(Xt)
+    tiempo_inicio = time.perf_counter()
+    QR_con_HH_sin_arroba(A, i)
+    tiempo_fin = time.perf_counter()
+    runtime = tiempo_fin - tiempo_inicio
+    proyeccion = (A.shape[1]/i)*runtime
+    return runtime, proyeccion
+
+def proyeccion_y_rt_diagRH_sin_arroba(Xt, K, numeroDeRecursiones):
+    A = (Xt @ (Xt).T)
+    tiempo_inicio = time.perf_counter()
+    diagRH_sin_arroba((A), K, numeroDeRecursiones)
+    tiempo_fin = time.perf_counter()
+    runtime = tiempo_fin - tiempo_inicio
+    proyeccion = ((Xt).shape[0]/numeroDeRecursiones)*runtime*2 #Este *2 se debe a que no se esta calculando lo que tarda la vuelta de la recursion y que tiene que hacer tmb multiplicaciones matriciales sin @
+    return runtime, proyeccion
+
+# Funciones para calcular runtime de calcular W con SVD usando diagRH con @
+'''
+En cuanto a el calculo de svd, logramos hacer que diagRH corriera en un tiempo razonable, utilizando @ y K = 1 para el metodo de la potencia.
+Sin embargo surgieron otros problemas. Uno es que la matriz es de 1536x1536, la recursion de python llega hasta poco menos de 1000.
+Tuvimos que cambiar el limite de las recursiones a 2000 para tener un poco de margen y que ande.
+No voy a negar que al hacer eso me crasheo la compu porque se quedo sin memoria y tuve que forzar un apagado jajaja.
+Asi que tambien tuvimos que reducir el gasto de memoria, convirtiendo todo a float16 (consume unos 9GB de RAM) 
+'''
+dtype = np.float16
+import sys
+N_MAXIMO_RECURSION = 2000 
+sys.setrecursionlimit(N_MAXIMO_RECURSION)
+
+def diagRH_con_arroba(A, tol=1e-15,K=1):
+    """
+    Esta es la unica funcion optimizada en el calculo de SVD. Unico cambio utilizar @ en lugar de multi_matricial
+    """
+    # Convertimos la entrada A a float16 para ahorrar memoria (si no se corta por RecursionError: maximum recursion depth exceeded)
+    if A.dtype != dtype:
+        A = A.astype(dtype)
+    n = A.shape[0]
+    print(n)
+    v1, lambda1, k = metpot2k(A, tol, K)
+    v1 = v1.astype(dtype)
+    e1 = np.zeros(v1.shape[0], dtype=dtype)
+    e1[0] = 1
+
+    sign = 1.0 if v1[0] >= 0 else -1.0
+    w = v1 + sign * norma(v1, 2) * e1
+
+    nw = norma(w, 2)
+    if (nw < tol):
+        H_v1 = np.eye(n, dtype=dtype)
+    else:
+        w = w / nw
+        H_v1 = np.eye(n, dtype=dtype) - dtype(2.0) * (traspuesta(w) @ w.reshape(1, -1))
+
+    if (n == 1):
+        S = H_v1
+        D = (H_v1 @ (A @ traspuesta(H_v1)))
+        return S, D
+    
+    else:
+        B = (H_v1 @ (A @ traspuesta(H_v1))).astype(dtype)
+        A_prima = B[1:,1:]
+        S_prima, D_prima = diagRH_optimizado(A_prima, tol, K)
+        print(n)
+        D = np.zeros((n, n), dtype=dtype)
+        D[0][0] = lambda1
+        D[1:,1:] = D_prima
+        S = np.eye(n, dtype=dtype)
+        S[1:,1:] = S_prima
+        S = (H_v1 @ S)
+        return S, D
+
+def svd_reducida_con_arroba(A,k="max",tol=1e-15):
+    '''
+    Esta funcion no tiene ninguna optimizacion, solo llama a calculoSVDReducida_optimizado
+    '''
+    
+    m,n = A.shape
+    if m < n:
+        A = traspuesta(A)
+    
+    U, diagonal_autovalores, V = calculoSVDReducida_optimizado(A, tol)
+    if m < n:
+        U, V = V, U        
+    
+    vector_epsilon = matriz_diagonal_a_vector(diagonal_autovalores)
+    
+    if not k == "max":
+        U, vector_epsilon, V = retenerValoresSingulares(U, vector_epsilon, V, k)
+    
+    return U, vector_epsilon, V 
+
+def calculoSVDReducida_con_arroba(A, tol):
+    '''
+    Esta funcion no tiene ninguna optimizacion, solo llama a diagRH_con_arroba
+    '''
+    A_t_A = (traspuesta(A) @ A)
+    
+    diagonal_autovalores, V = diagRH_con_arroba(A_t_A)
+
+    epsilon_hat, V_hat = reducirMatrices(V, diagonal_autovalores, tol)
+    
+    U_hat = calcularMatriz(A, V_hat, epsilon_hat)
+    
+    return U_hat, epsilon_hat, V_hat
+
+def rt_calcular_W_usando_diagRH_con_arroba(Xt, K, numeroDeRecursiones):
+    A = (Xt @ (Xt).T)
+    tiempo_inicio = time.perf_counter()
+    diagRH_sin_arroba((A), K, numeroDeRecursiones)
+    tiempo_fin = time.perf_counter()
+    runtime = tiempo_fin - tiempo_inicio
+    proyeccion = ((Xt).shape[0]/numeroDeRecursiones)*runtime*2 #Este *2 se debe a que no se esta calculando lo que tarda la vuelta de la recursion y que tiene que hacer tmb multiplicaciones matriciales sin @
+    return runtime, proyeccion
 
 
 
 
+# Funcion para convertir segundos a minutos/horas/dias
+
+def formatear_tiempo(proyeccion: float) -> str:
+    """
+    Esto estuvo hecho con GPT :p
+    Convierte una cantidad de segundos en un string legible,
+    mostrando solo las dos unidades de tiempo más grandes (días, horas, minutos, segundos)
+    que sean distintas de cero.
+
+    :param proyeccion: Cantidad de segundos (puede ser float) a formatear.
+    :return: String con el formato 'X unidad_mayor y Y unidad_menor'.
+    """
+
+    # Definición de unidades en segundos
+    SEGUNDOS_EN_DIA = 86400
+    SEGUNDOS_EN_HORA = 3600
+    SEGUNDOS_EN_MINUTO = 60
+
+    # 1. Aseguramos que la entrada es un entero para los cálculos modulares
+    proyeccion_entero = int(round(proyeccion))
+    tiempo_restante = proyeccion_entero
+
+    # 2. Cálculos para obtener cada unidad
+    dias = tiempo_restante // SEGUNDOS_EN_DIA
+    tiempo_restante %= SEGUNDOS_EN_DIA
+
+    horas = tiempo_restante // SEGUNDOS_EN_HORA
+    tiempo_restante %= SEGUNDOS_EN_HORA
+
+    minutos = tiempo_restante // SEGUNDOS_EN_MINUTO
+    segundos = tiempo_restante % SEGUNDOS_EN_MINUTO
+
+    # 3. Lista de unidades (valor, nombre_singular, nombre_plural)
+    unidades = [
+        (dias, "día", "días"),
+        (horas, "hora", "horas"),
+        (minutos, "minuto", "minutos"),
+        (segundos, "segundo", "segundos"),
+    ]
+
+    # 4. Filtramos solo las unidades con valor > 0
+    unidades_significativas = [(v, s, p) for v, s, p in unidades if v > 0]
+
+    # 5. Lógica de formato (tomando solo las 2 más grandes)
+
+    if not unidades_significativas:
+        # Caso de 0 segundos
+        return "0 segundos"
+    
+    # Tomamos las dos unidades más grandes
+    unidad_mayor = unidades_significativas[0]
+    
+    # Formateo de la unidad mayor (incluye singular/plural)
+    def formatear_unidad(valor, singular, plural):
+        nombre = singular if valor == 1 else plural
+        return f"{valor} {nombre}"
+
+    resultado = formatear_unidad(unidad_mayor[0], unidad_mayor[1], unidad_mayor[2])
+
+    # Si hay una segunda unidad, la añadimos con "y"
+    if len(unidades_significativas) >= 2:
+        unidad_menor = unidades_significativas[1]
+        resultado += " y " + formatear_unidad(unidad_menor[0], unidad_menor[1], unidad_menor[2])
+    
+    return resultado
