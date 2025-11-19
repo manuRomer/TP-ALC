@@ -221,28 +221,25 @@ def calculaLU(A):
     m, n = A.shape
     U = A.copy()
     
-    if m!=n:
+    if m != n:
         print('Matriz no cuadrada')
         return None, None, 0
-    
-    for k in range(0, n-1):
-        if (U[k][k] == 0): return None, None, 0
+        
+    for k in range(n - 1):
+        if (U[k, k] == 0): return None, None, 0
 
-        for i in range(k+1, n):
+        for i in range(k + 1, n):
             factor = U[i, k] / U[k, k]
             U[i, k] = factor
             nops += 1
-
-            for j in range(k+1, n):
-                U[i][j] = U[i][j] - U[k][j] * factor
-                nops += 2
-
-    if (U[n-1][n-1] == 0): return None, None, 0
+            U[i, k + 1:] = U[i, k + 1:] - factor * U[k, k + 1:]
+            nops += 2 * (n - k - 1) 
+            
+    if (U[n-1, n-1] == 0): return None, None, 0
     L = np.eye(n)
     for j in range(n):
-        for i in range(j+1, n):
-            L[i][j] = U[i][j]
-            U[i][j] = 0
+        L[j+1:, j] = U[j+1:, j]
+        U[j+1:, j] = 0
 
     return L, U, nops
 
@@ -253,21 +250,23 @@ def res_tri(L, b, inferior=True):
     inferior (por default asumir que es triangular inferior).
     """
     n = L.shape[1]
+    
     if inferior:
         y = np.zeros(n)
         for i in range(0, n):
-            y_i = b[i]
-            for j in range(0, i):
-                y_i -= L[i][j]*y[j]
-            y[i] = y_i /  L[i][i]
+            terminos_restar = multi_matricial(L[i, :i], y[:i])
+            
+            y_i = b[i] - terminos_restar
+            y[i] = y_i / L[i, i]
         return y
-    else:
+        
+    else: # Triangular Superior (Sustitución Hacia Atrás)
         x = np.zeros(n)
-        for i in range(n-1, -1, -1):
-            x_i = b[i]
-            for j in range(n-1, i, -1):
-                x_i -= L[i][j]*x[j]
-            x[i] = x_i /  L[i][i]
+        for i in range(n - 1, -1, -1):
+            terminos_restar = multi_matricial(L[i, i+1:], x[i+1:])
+            
+            x_i = b[i] - terminos_restar
+            x[i] = x_i / L[i, i]
         return x
 
 def inversa(A):
@@ -366,7 +365,7 @@ def QR_con_GS(A, tol=1e-12, retorna_nops=False):
     Si la matriz A no es de nxn, debe retornar None
     """
     nops = 0
-    n = A.shape[1]
+    m, n = A.shape
     a_1 = A[:, 0]
     r_11 = norma(a_1, 2)
     nops += a_1.shape[0]*2 -1     # operaciones de la norma
@@ -374,35 +373,34 @@ def QR_con_GS(A, tol=1e-12, retorna_nops=False):
     q_1 = a_1 / r_11
     nops += 1
     
-    Q = np.zeros((n, n))
+    Q = np.zeros((m, n))
     R = np.zeros((n, n))
     Q[:, 0] = q_1
     R[0][0] = r_11
 
     for j in range(1, n):
-        q_j_prima = A[:, j]
-
-        for k in range (0, j):
-            q_k = Q[:, k]
-            r_kj = multi_matricial(q_k, q_j_prima)
-            nops += q_k.shape[0]**2   # operaciones de la mulriplicacion matricial
-            
-            q_j_prima = q_j_prima - r_kj * q_k
-            nops += 2 
-
-            R[k][j] = r_kj
+        q_j_prima = A[:, j] 
+        
+        R_col_j = multi_matricial(Q[:, :j].T, q_j_prima) 
+        q_j_prima = q_j_prima - multi_matricial(Q[:, :j], R_col_j )
+        R[:j, j] = R_col_j 
         
         r_jj = norma(q_j_prima, 2)
-        nops += q_j_prima.shape[0]*2 -1     # operaciones de la norma
         
         q_j = q_j_prima / r_jj
-        nops += 1 
+        
         Q[:, j] = q_j
-        R[j][j] = r_jj
+        R[j, j] = r_jj
+    
+
+    R_economica = R[:n, :] 
+    Q_economica = Q[:, :n]
 
     if (retorna_nops):
-        return Q, R, nops
-    return Q, R
+        return Q_economica, R_economica, nops
+
+    
+    return Q_economica, R_economica
 
 def QR_con_HH(A, tol=1e-12, retorna_nops=False):
     """
@@ -709,19 +707,23 @@ def calcularMatriz(A,B,diagonal_autovalores):
 ## Funciones necesarias para el Trabajo Practico
 
 def cholesky(A):
+
     '''Devuelve la matriz L de cholesky'''
-    if not(esSDP(A)):
+    if not(esSDP_optimizado(A)):
         raise Exception("Para calcular la factorizacion de Cholesky de una matriz, es necesario que esta sea SDP")
     n = A.shape[0]
     L = np.zeros((n, n))
-
+    
     for j in range(n):
-        suma_diag = sum(L[j][k]**2 for k in range(j))
-        L[j][j] = math.sqrt(A[j][j] - suma_diag)
+        vector_L_j = L[j, :j] 
+        suma_diag = multi_matricial(vector_L_j, vector_L_j)
+        valor_raiz = A[j, j] - suma_diag
+        L[j, j] = math.sqrt(valor_raiz)
+        for i in range(j + 1, n):
+            vector_L_i = L[i, :j]
+            suma_no_diag = multi_matricial(vector_L_i, vector_L_j)
+            L[i, j] = (A[i, j] - suma_no_diag) / L[j, j]
 
-        for i in range(j+1, n):
-            suma_no_diag = sum(L[i][k] * L[j][k] for k in range(j))
-            L[i][j] = (A[i][j] - suma_no_diag) / L[j][j]
     return L
 
 def esDiagonal(A):
@@ -763,7 +765,7 @@ def calcularWconQR(Q, R, Y):
 
     # Calculo V^T
     for i in range(p):
-        V_t[:, i] = res_tri_optimizado(R, Q_t[:, i], False)
+        V_t[:, i] = res_tri(R, Q_t[:, i], False)
     
     # Obtengo W
     W = multi_matricial(Y, traspuesta(V_t))
@@ -879,7 +881,7 @@ def obtenerMatricesDeConfusion(Xt, Yt, Xv, Yv):
     
     # En el contexto del TP n < p, entonces para el algoritmo 1 aplicamos Cholesky sobre X @ X^T
     tiempo_inicio_EN = time.perf_counter()
-    L = cholesky_optimizado(Xt @ traspuesta(Xt))
+    L = cholesky(Xt @ traspuesta(Xt))
     WEN = pinvEcuacionesNormales(Xt, L , Yt)
     tiempo_fin_EN = time.perf_counter()
     print('Terminó WEN')
@@ -901,7 +903,7 @@ def obtenerMatricesDeConfusion(Xt, Yt, Xv, Yv):
     matriz_de_confusion_WQRHH = generarMatrizDeConfusion(WQRHH, Xv, Yv)
     
     tiempo_inicio_QRGS = time.perf_counter()
-    QGS, RGS = QR_con_GS_optimizado(traspuesta(Xt))
+    QGS, RGS = QR_con_GS(traspuesta(Xt))
     WQRGS = pinvGramSchmidt(QGS, RGS, Yt)
     tiempo_fin_QRGS = time.perf_counter()
     print('Terminó WQRGS')
@@ -980,11 +982,11 @@ def pinvEcuacionesNormales(X,L,Y):
         
         # Paso intermedio. Sustitucion hacia adelante: L @ Z = X^T
         for i in range(n):
-            Z[:, i] = res_tri_optimizado(L, X_t[:, i], True)
+            Z[:, i] = res_tri(L, X_t[:, i], True)
             
         # Resuelvo el sistema. Sustitución hacia atrás: L^T @ U = Z
         for i in range(n):
-            U[:, i] = res_tri_optimizado(L_t, Z[:, i], False)
+            U[:, i] = res_tri(L_t, Z[:, i], False)
 
         # Calculo W
         W = multi_matricial(Y, U)
@@ -999,11 +1001,11 @@ def pinvEcuacionesNormales(X,L,Y):
 
         # Paso intermedio. Sustitucion hacia adelante: L @ Z = X
         for i in range(p):
-            Z[:, i] = res_tri_optimizado(L, X[:, i], True)
+            Z[:, i] = res_tri(L, X[:, i], True)
             
         # Resuelvo el sistema. Sustitución hacia atrás: L^T @ V^T = Z
         for i in range(p):
-            Vt[:, i] = res_tri_optimizado(L_t, Z[:, i], False)
+            Vt[:, i] = res_tri(L_t, Z[:, i], False)
         
         V = traspuesta(Vt)
         
@@ -1060,62 +1062,11 @@ def esPseudoInversa(X, pX, tol = 1e-8):
 
 ## Funciones optimizadas para poder correr el TP en un tiempo razonable:
 
-def cholesky_optimizado(A):
-
-    # Tarda 14 segundos aprox.
-
-    '''Devuelve la matriz L de cholesky'''
-    if not(esSDP_optimizado(A)):
-        raise Exception("Para calcular la factorizacion de Cholesky de una matriz, es necesario que esta sea SDP")
-    n = A.shape[0]
-    L = np.zeros((n, n))
-    
-    for j in range(n):
-        vector_L_j = L[j, :j] 
-        suma_diag = multi_matricial(vector_L_j, vector_L_j)
-        valor_raiz = A[j, j] - suma_diag
-        L[j, j] = math.sqrt(valor_raiz)
-        for i in range(j + 1, n):
-            vector_L_i = L[i, :j]
-            suma_no_diag = multi_matricial(vector_L_i, vector_L_j)
-            L[i, j] = (A[i, j] - suma_no_diag) / L[j, j]
-
-    return L
-
-def calculaLU_optimizado(A):
-    """
-    Calcula la factorizacion LU de la matriz A y retorna las matrices L
-    y U, junto con el numero de operaciones realizadas. En caso de
-    que la matriz no pueda factorizarse retorna None.
-    """
-    nops = 0
-    m, n = A.shape
-    U = A.copy()
-    
-    if m != n:
-        print('Matriz no cuadrada')
-        return None, None, 0
-        
-    for k in range(n - 1):
-        if (U[k, k] == 0): return None, None, 0
-
-        for i in range(k + 1, n):
-            factor = U[i, k] / U[k, k]
-            U[i, k] = factor
-            nops += 1
-            # OPTIMIZACION: vectorizar la actualizacion de la fila.
-            U[i, k + 1:] = U[i, k + 1:] - factor * U[k, k + 1:]
-            nops += 2 * (n - k - 1) 
-            
-    if (U[n-1, n-1] == 0): return None, None, 0
-    L = np.eye(n)
-    for j in range(n):
-        # OPTIMIZACIÓN: vectorizar la copia y puesta a cero de la subcolumna
-        L[j+1:, j] = U[j+1:, j]
-        U[j+1:, j] = 0
-
-    return L, U, nops
-
+# En cuanto a el calculo de svd, intentamos de todo, cambiar K, las multiplicaciones matriciales por @, todas las funciones de np que pudimos
+# Sin embargo, la recursion seguia tardando muchisimo. Cosas que probamos para acelerar el calculo de diagRH:
+# Con nuestra implementacion de multi_matricial (y usando np.sum), y K=5 tardaba unos 50 segundos para hacer 1 solo paso recursivo. Proyeccion de unas 20hs.
+# Con todas las multi_matricial reemplazadas por @, y K=5 tardaba unos 22 segundos para hacer 5 pasos recursivos. Proyeccion de 2hs
+# Preferimos recurrir a eigh de scipy.linalg para hacer el calculo de diagRH. Asi, tarda unos 80 segundos nada mas lo cual es mas razonable.
 def calculaLDV_optimizado(A):
     """
     Calcula la factorizacion LDV de la matriz A, de forma tal que A =
@@ -1123,10 +1074,10 @@ def calculaLDV_optimizado(A):
     superior. En caso de que la matriz no pueda factorizarse
     retorna None.
     """
-    L, U, nops1 = calculaLU_optimizado(A) 
+    L, U, nops1 = calculaLU(A) 
     if (L is None): return None, None, None, 0
     Ut = traspuesta(U)
-    V, D , nops2= calculaLU_optimizado(Ut) 
+    V, D , nops2= calculaLU(Ut) 
 
     return L, D, traspuesta(V) , nops1 + nops2
 
@@ -1142,30 +1093,7 @@ def esSDP_optimizado(A, atol=1e-15):
     for i in range(A.shape[0]):
         if (D[i][i] <= 0): return False
     return True
-
-def res_tri_optimizado(L, b, inferior=True):
-    n = L.shape[1]
-    
-    if inferior:
-        y = np.zeros(n)
-        for i in range(0, n):
-            # OPTIMIZACIÓN: vectorizacion del producto interno
-            terminos_restar = multi_matricial(L[i, :i], y[:i])
-            
-            y_i = b[i] - terminos_restar
-            y[i] = y_i / L[i, i]
-        return y
-        
-    else: # Triangular Superior (Sustitución Hacia Atrás)
-        x = np.zeros(n)
-        for i in range(n - 1, -1, -1):
-            # OPTIMIZACIÓN: vectorizacion del producto interno
-            terminos_restar = multi_matricial(L[i, i+1:], x[i+1:])
-            
-            x_i = b[i] - terminos_restar
-            x[i] = x_i / L[i, i]
-        return x
-    
+   
 def svd_reducida_optimizado(A,k="max",tol=1e-15):
     '''A la matriz de interes(de m x n)
     k el numero de valores singulares (y vectores) a retener.
@@ -1205,55 +1133,7 @@ def calculoSVDReducida_optimizado(A, tol):
     
     return U_hat, epsilon_hat, V_hat
 
-def QR_con_GS_optimizado(A, tol=1e-12, retorna_nops=False):
-    """
-    A una matriz de nxn
-    tol la tolerancia con la que s efiltran elementos nulos en R
-    retorna_nops permite (opcionalmente) retornar el numero de operaciones realizado
-    retrona matrices Q y R calculadas con Gram Schmidt (y como tercer argumento 
-    opcional, el numero de operaciones)
-    Si la matriz A no es de nxn, debe retornar None
-    """
-    nops = 0
-    m, n = A.shape
-    a_1 = A[:, 0]
-    r_11 = norma(a_1, 2)
-    nops += a_1.shape[0]*2 -1     # operaciones de la norma
-    
-    q_1 = a_1 / r_11
-    nops += 1
-    
-    Q = np.zeros((m, n))
-    R = np.zeros((n, n))
-    Q[:, 0] = q_1
-    R[0][0] = r_11
-
-    for j in range(1, n):
-        q_j_prima = A[:, j] 
-        
-        # OPTIMIZACION: vectorizar el calculo de todos los coeficientes r_{k,j} para una columna j
-        R_col_j = multi_matricial(Q[:, :j].T, q_j_prima) 
-        # OPTIMIZACION: vectorizar la resta de las proyecciones
-        proyeccion = multi_matricial(Q[:, :j], R_col_j )
-        q_j_prima = q_j_prima - proyeccion
-        R[:j, j] = R_col_j 
-        
-        r_jj = norma(q_j_prima, 2)
-        
-        q_j = q_j_prima / r_jj
-        
-        Q[:, j] = q_j
-        R[j, j] = r_jj
-    
-
-    R_economica = R[:n, :] 
-    Q_economica = Q[:, :n]
-
-    if (retorna_nops):
-        return Q_economica, R_economica, nops
-
-    
-    return Q_economica, R_economica
+# En cuanto al calculo de QR con HH, tardaba muchisimo (horas) con nuestra implementacion de multi_matricial. Simplemente reemplazamos esas por @
 
 def QR_con_HH_optimizado(A, tol=1e-12, retorna_nops=False):
     """
