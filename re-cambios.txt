@@ -1,0 +1,14 @@
+Cambios realizados.
+
+Anteriormente las funciones pinv devolvian tanto W como la pseudoinversa calculada. Esto era para poder aislar al proceso de calcualr W, de la 
+verificacion de la pseudoinversa, y asi tener buenos datos sobre su tiempo de ejecucion. Ahora todas las funciones pinv devuelven solo W. La 
+verificacion de pseudoinversa se realiza dentro de la misma funcion. Se quito la verificacion de pseudoinversa en el notebook.
+
+Se cambio el nombre de la funcion cholesky a calculaCholesky
+
+Ahora pinvSVD soporta que S venga como matriz o como vector.
+
+La funcion QR_con_HH devuelve la version reducida.
+
+Quitamos las funciones de estimacion de tiempo para los calculos de W sin optimizaciones. Y consigo, la seccion en el notebook que realizaba dichas 
+estimaciones.

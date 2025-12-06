@@ -963,7 +963,7 @@ def pinvSVD(U, S, V, Y):
     n = S.shape[0]
 
     # Calculamos Sigma_1^-1
-    S_1 = inversaDeMatrizDiagonal(S)
+    S_1 = inversaDeMatrizDiagonal(S[:, :n])
 
     # Calculamos la pseudo-inversa de X
     V_1 = V[:,:n]
